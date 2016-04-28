@@ -55,6 +55,7 @@ function aStarSearch<Node> (
     heuristics : (n:Node) => number,
     timeout : number
 ) : SearchResult<Node> {
+    // graph.compareNodes only checks if two nodes are the same, but we want to check the heuristics
     var comparer: collections.ICompareFunction<Node> = function(a, b) {
         var aCost = costs.getValue(a) + heuristics(a), 
             bCost = costs.getValue(b) + heuristics(b);
@@ -74,14 +75,17 @@ function aStarSearch<Node> (
         node = queue.dequeue();
         if(goal(node))
             break;
-        var nodeCost = costs.getValue(node);
 
+        var nodeCost = costs.getValue(node);
+        // check all the edges from this node and update their costs
         for(var edge of graph.outgoingEdges(node)) {
             var newNode : Node = edge.to;
             var newCost = nodeCost + edge.cost;
             if(!costs.containsKey(newNode) || newCost < costs.getValue(newNode)) {
+                // the node has never been visited, or we have found a shorter path to it
                 paths.setValue(newNode, node);
                 costs.setValue(newNode, newCost);
+                // costs must be updated before we enqueue because the comparer needs the new cost
                 queue.enqueue(newNode);
             }
         }
@@ -93,6 +97,7 @@ function aStarSearch<Node> (
         path: [],
         cost: costs.getValue(node)
     };
+    // node is equal to goal, traverse the links backwards to reconstruct the entire path  
     for(; node != start; node = paths.getValue(node))
         result.path.unshift(node);
     return result;
