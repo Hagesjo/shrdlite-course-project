@@ -55,7 +55,12 @@ function aStarSearch<Node> (
     heuristics : (n:Node) => number,
     timeout : number
 ) : SearchResult<Node> {
-    var queue = new collections.PriorityQueue(graph.compareNodes);
+    var comparer: collections.ICompareFunction<Node> = function(a, b) {
+        var aCost = costs.getValue(a) + heuristics(a), 
+            bCost = costs.getValue(b) + heuristics(b);
+        return bCost - aCost;
+    }
+    var queue = new collections.PriorityQueue(comparer);
     var paths = new collections.Dictionary<Node, Node>();
     var costs = new collections.Dictionary<Node, number>();
     queue.enqueue(start);
