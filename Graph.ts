@@ -55,18 +55,38 @@ function aStarSearch<Node> (
     heuristics : (n:Node) => number,
     timeout : number
 ) : SearchResult<Node> {
-    // A dummy search result: it just picks the first possible neighbour
-    var result : SearchResult<Node> = {
-        path: [start],
-        cost: 0
-    };
-    while (result.path.length < 3) {
-        var edge : Edge<Node> = graph.outgoingEdges(start) [0];
-        if (! edge) break;
-        start = edge.to;
-        result.path.push(start);
-        result.cost += edge.cost;
+    var queue = new collections.PriorityQueue(graph.compareNodes);
+    var paths = new collections.Dictionary<Node, Node>();
+    var costs = new collections.Dictionary<Node, number>();
+    queue.enqueue(start);
+    costs.setValue(start, 0);
+
+    var node : Node;
+    while(!queue.isEmpty()) {
+        node = queue.dequeue();
+        if(goal(node))
+            break;
+        var nodeCost = costs.getValue(node);
+
+        for(var edge of graph.outgoingEdges(node)) {
+            var newNode : Node = edge.to;
+            var newCost = nodeCost + edge.cost;
+            if(!costs.containsKey(newNode) || newCost < costs.getValue(newNode)) {
+                paths.setValue(newNode, node);
+                costs.setValue(newNode, newCost);
+                queue.enqueue(newNode);
+            }
+        }
     }
+    if(!goal(node))
+        return undefined; // no path
+
+    var result : SearchResult<Node> = {
+        path: [],
+        cost: costs.getValue(node)
+    };
+    for(; node != start; node = paths.getValue(node))
+        result.path.unshift(node);
     return result;
 }
 
