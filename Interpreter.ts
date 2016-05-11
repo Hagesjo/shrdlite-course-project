@@ -114,8 +114,32 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             {polarity: true, relation: "ontop", args: [a, "floor"]},
             {polarity: true, relation: "holding", args: [b]}
         ]];
+
         return interpretation;
     }
 
+    function literal(cmd : string, ...args : string[]) : Literal {
+        /* Negation? */
+        var pattern = /^-/g;
+        var polarity: boolean = !pattern.test(cmd);
+        
+        /* Relation */
+        pattern = /[^-]\w+/g;
+        var relation: string  = pattern.exec(cmd).toString();
+
+        /* Create Literal */
+        var literal:Literal = {
+            polarity : polarity,
+            relation : relation,
+            args : args
+        };
+
+        /* Testing 
+        console.log("pol: " + polarity);
+        console.log("rel: " + relation);
+        console.log("args: " + args); */
+
+        return literal;
+    }
 }
 
