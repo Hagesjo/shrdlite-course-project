@@ -106,25 +106,121 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
      * @returns A list of list of Literal, representing a formula in disjunctive normal form (disjunction of conjunctions). See the dummy interpetation returned in the code for an example, which means ontop(a,floor) AND holding(b).
      */
     function interpretCommand(cmd : Parser.Command, state : WorldState) : DNFFormula {
-        // This returns a dummy interpretation involving two random objects in the world
-        var objects : string[] = Array.prototype.concat.apply([], state.stacks);
-        var a : string = objects[Math.floor(Math.random() * objects.length)];
-        var b : string = objects[Math.floor(Math.random() * objects.length)];
-        var interpretation : DNFFormula = [[
-            {polarity: true, relation: "ontop", args: [a, "floor"]},
-            {polarity: true, relation: "holding", args: [b]}
-        ]];
-        console.log("Tjenna: legget?" + state.stacks);
-        return interpretation;
+        //console.log("===CMD=== " + JSON.stringify(cmd, null, 2) + "\n");
+        if(cmd.command === "take" && cmd.entity.quantifier === "all")
+            throw "we can't pick up more than one object";
+        var subjects : string[][];
+        if(cmd.command === "put") {
+            // we want manipulate the object in the arm
+            if(state.holding === null)
+                throw "we aren't holding anything";
+            subjects = [[state.holding]];
+        } else {
+            // figure out what objects we want to manipulate
+            subjects = possToIdss(findEntities(cmd.entity, state), state);
+        }
+        //console.log("===SUBS=== " + JSON.stringify(subjects, null, 2));
+        var ors : DNFFormula = [];
+        if(cmd.command === "take") {
+            // the object should end up in our arm
+            for(var subs of subjects)
+                ors.push([{polarity: true, relation: "holding", args: [subs[0]]}]);
+        } else {
+            // find all destinations, and since "all" is not viable we will always get an array in the form of
+            // [[P], [Q], [R], ...], and as such we flatten it with map
+            var dests : string[] = posToIds(findEntities(cmd.location.entity, state).map(x => x[0]), state);
+            //console.log("===DEST=== " + JSON.stringify(dests, null, 2));
+            for(var subs of subjects)
+                ors = ors.concat(combine(cmd.location.relation, subs, dests));
+        }
+        if(!ors.length)
+            throw "unable to interpret";
+        return ors;
+    }
+
+    function combine(relation : string, lefts : string[], rights : string[]) : DNFFormula {
+        var ors : DNFFormula = [];
+        if(lefts.length === 1) {
+            for(var right of rights)
+                ors.push([{polarity: true, relation: relation, args: [lefts[0], right]}]);
+        } else {
+            var left : string = lefts.pop();
+            for(var i : number = rights.length-1; i >= 0; i--) {
+                var l : string[] = lefts.slice();
+                var r : string[] = rights.slice();
+                var right : string = r.splice(i, 1)[0];
+                var dnf : DNFFormula = combine(relation, l, r);
+                for(var or of dnf)
+                    or.push({polarity: true, relation: relation, args: [left, right]});
+                ors = ors.concat(dnf);
+            }
+        }
+        return ors;
     }
 
     interface Position {
-        stack : number,
-        posInStack : number
+        stack : number, posInStack : number
     }
 
     interface PositionTest {
-        test : (x: Position) => boolean
+        test : (x : Position) => boolean
+    }
+
+    function possToIdss(poss : Position[][], state : WorldState) : string[][] {
+        return poss.map(pos => posToIds(pos, state));
+    }
+
+    function posToIds(pos : Position[], state : WorldState) : string[] {
+        return pos.map(pos => posToId(pos, state));
+    }
+
+    function posToId(pos : Position, state : WorldState) : string {
+        return state.stacks[pos.stack][pos.posInStack];
+    }
+
+    function findEntities(entity : Parser.Entity, state : WorldState) : Position[][] {
+        if(entity.object.location !== undefined) {
+            // there are more restrictions
+            var tests : PositionTest[] = findLocations(entity.object.location, state);
+            var objs  : Position[]     = findObjects(entity.object.object, state);
+            var validObjs : Position[] = objs.filter(obj => tests.some(test => test.test(obj)));
+            return checkQuantifier(entity.quantifier, validObjs);
+        } else {
+            // entity.object describes what entities we want to find
+            var objs : Position[] = findObjects(entity.object, state);
+            return checkQuantifier(entity.quantifier, objs);
+        }
+    }
+
+    function checkQuantifier(quantifier : string, entities : Position[]) : Position[][] {
+        switch(quantifier) {
+            case "the":
+                if(entities.length > 1) // there can't be more than one "the"
+                    throw "\"the\" is ambigous";
+                return [entities];
+            case "any":
+                return entities.map(x => [x]);
+            case "all":
+                return [entities];
+        }
+        throw "unknown quantifier \"" + quantifier + "\"";
+    }
+
+    function findObjects(objectDesc : Parser.Object, state : WorldState) : Position[] {
+        var entities : Position[] = [];
+        for(var stackIndex = 0; stackIndex < state.stacks.length; stackIndex++) {
+            var stack : Stack = state.stacks[stackIndex];
+            for(var objIndex = 0; objIndex < stack.length; objIndex++) {
+                var objId : string = stack[objIndex];
+                var object : ObjectDefinition = state.objects[objId];
+                var form  : boolean = objectDesc.form  === null || objectDesc.form  === object.form;
+                var size  : boolean = objectDesc.size  === null || objectDesc.size  === object.size;
+                var color : boolean = objectDesc.color === null || objectDesc.color === object.color;
+                if(form && size && color)
+                    entities.push({stack: stackIndex, posInStack: objIndex});
+            }
+        }
+        return entities;
     }
 
     function findLocations(location: Parser.Location, state : WorldState) : PositionTest[]  {
@@ -155,9 +251,9 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                     positionTest.push({test: x => x.stack > pos[0].stack}); 
                 break;
             case "inside":
-            case "on":
+            case "ontop":
                 for (var pos of positions)
-                    positionTest.push({test: x => (x.stack-1) == pos[0].stack});
+                    positionTest.push({test: x => (x.stack == pos[0].stack && (x.posInStack-1) == pos[0].posInStack)});
                 break;
             case "under":
                 for (var pos of positions)
@@ -193,11 +289,12 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         };
 
         /* Testing 
-        console.log("pol: " + polarity);
-        console.log("rel: " + relation);
-        console.log("args: " + args); */
+        //console.log("pol: " + polarity);
+        //console.log("rel: " + relation);
+        //console.log("args: " + args); */
 
         return literal;
     }
+
 }
 
