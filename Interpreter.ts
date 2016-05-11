@@ -114,8 +114,66 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             {polarity: true, relation: "ontop", args: [a, "floor"]},
             {polarity: true, relation: "holding", args: [b]}
         ]];
-
+        console.log("Tjenna: legget?" + state.stacks);
         return interpretation;
+    }
+
+    interface Position {
+        stack : number,
+        posInStack : number
+    }
+
+    interface PositionTest {
+        test : (x: Position) => boolean
+    }
+
+    function findLocations(location: Parser.Location, state : WorldState) : PositionTest[]  {
+ 
+        if (location.entity.quantifier === "all")
+            throw "\"all\" does not makes sense in this context";
+       
+        if (location.relation === "inside"){ 
+            var form : string;
+            if (location.entity.object.location === undefined)
+                form = location.entity.object.form;
+            else
+                form = location.entity.object.object.form;
+
+            if (form !== "box")
+                throw("\"inside " + form + "\" does not make sense");
+        }
+
+        var positions : Position[][] = findEntities(location.entity, state);
+        var positionTest : PositionTest[] = [];
+        switch(location.relation){
+            case "leftof":
+                for (var pos of positions) 
+                    positionTest.push({test: x => x.stack < pos[0].stack});
+                break;
+            case "rightof":
+                for (var pos of positions)
+                    positionTest.push({test: x => x.stack > pos[0].stack}); 
+                break;
+            case "inside":
+            case "on":
+                for (var pos of positions)
+                    positionTest.push({test: x => (x.stack-1) == pos[0].stack});
+                break;
+            case "under":
+                for (var pos of positions)
+                    positionTest.push({test: x => (x.stack == pos[0].stack && x.posInStack < pos[0].posInStack)});
+                break;
+            case "beside":
+                for (var pos of positions) 
+                    positionTest.push({test: x => (Math.abs(x.stack - pos[0].stack) == 1)});
+                break;
+            case "above":
+                for (var pos of positions)
+                    positionTest.push({test: x => (x.stack == pos[0].stack && x.posInStack > pos[0].posInStack)});
+                break;
+        } 
+        
+        return positionTest;
     }
 
     function literal(cmd : string, ...args : string[]) : Literal {
