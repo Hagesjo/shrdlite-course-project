@@ -258,8 +258,6 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                  throw("you can not put objects on balls")
         }
 
-        if(cmd.location.relation === "on top of" && cmd.location.obj.form === "ball")
-                throw "we can't put objects on balls"
 
         var positions : Position[][] = findEntities(location.entity, state);
         var positionTest : PositionTest[] = [];
