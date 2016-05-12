@@ -147,12 +147,16 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                 var dest_obj = state.objects[right];
                 if (lefts[0] !== right) {
                     // Here be dragons
-                    if (!( (relation === "inside" ||
-                          relation === "on top of") &&
-                          src_obj.size === "large" &&
-                          dest_obj.size === "small")) {
+                    if (!
+                        (
+                         (relation === "inside" || relation === "ontop" || relation === "under") &&
+                         (
+                          (src_obj.size === "large" && dest_obj.size === "small") ||
+                          (src_obj.form === "ball" && dest_obj.form !== "floor" && dest_obj.form !== "box" )
+                         )
+                        )
+                       )
                         ors.push([{polarity: true, relation: relation, args: [lefts[0], right]}]);
-                    }
                 }
             }
         } else {
@@ -175,6 +179,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     }
 
     interface PositionTest {
+		bajs? : string,
         test : (x : Position) => boolean
     }
 
@@ -195,7 +200,15 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             // there are more restrictions
             var tests : PositionTest[] = findLocations(entity.object.location, state);
             var objs  : Position[]     = findObjects(entity.object.object, state);
+            console.log("AOSENTHAOESNTH");
+            for (var t of tests)
+                if (t.bajs)
+                    console.log("Test: " + t.bajs + " ? " + t.test({stack:0, posInStack: 238}));
+            for (var o of objs)
+                console.log("Object: " + o.stack + " " + o.posInStack);
             var validObjs : Position[] = objs.filter(obj => tests.some(test => test.test(obj)));
+            for (var o of validObjs)
+                console.log("Valid Object: " + o.stack + " " + o.posInStack);
             return checkQuantifier(entity.quantifier, validObjs);
         } else {
             // entity.object describes what entities we want to find
@@ -212,6 +225,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                 return [entities];
             case "any":
             case "an":
+            case "a":
                 return entities.map(x => [x]);
             case "all":
                 return [entities];
@@ -231,6 +245,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                 var size  : boolean = objectDesc.size  === null || objectDesc.size  === object.size;
                 var color : boolean = objectDesc.color === null || objectDesc.color === object.color;
                 if(form && size && color){
+                    console.log(stackIndex, objIndex);
                     entities.push({stack: stackIndex, posInStack: objIndex});
                 }
             }
@@ -269,29 +284,38 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         var positionTest : PositionTest[] = [];
         switch(location.relation){
             case "leftof":
-                for (var pos of positions) 
-                    positionTest.push({test: x => x.stack < pos[0].stack});
+                for (var aoe of positions)
+                    positionTest.push({test: x => x.stack < aoe[0].stack});
                 break;
             case "rightof":
-                for (var pos of positions)
-                    positionTest.push({test: x => x.stack > pos[0].stack}); 
+                for (var aoe of positions)
+                    positionTest.push({test: x => x.stack > aoe[0].stack});
                 break;
             case "inside":
             case "ontop":
-                for (var pos of positions)
-                    positionTest.push({test: x => (x.stack == pos[0].stack && (x.posInStack-1) == pos[0].posInStack)});
+                for (var aoe of positions)
+                    positionTest.push({test: x => (x.stack == aoe[0].stack && (x.posInStack-1) == aoe[0].posInStack)});
                 break;
             case "under":
-                for (var pos of positions)
-                    positionTest.push({test: x => (x.stack == pos[0].stack && x.posInStack < pos[0].posInStack)});
+                for (var aoe of positions)
+                    positionTest.push({test: x => (x.stack == aoe[0].stack && x.posInStack < aoe[0].posInStack)});
                 break;
             case "beside":
-                for (var pos of positions) 
-                    positionTest.push({test: x => (Math.abs(x.stack - pos[0].stack) == 1)});
+                for (var i = 0; i < positions.length; i++) {
+                    var pos : Position = {stack: positions[i][0].stack, posInStack: positions[i][0].posInStack};
+                    positionTest.push({bajs: JSON.stringify(pos, null, 2),
+                                      test: x => {
+                                          var pls = (Math.abs(x.stack - pos.stack));
+                                          console.log("TEEEEEEEEEEEEEEEST");
+                                          console.log("bajs " + JSON.stringify(pos));
+                                          console.log("PLS " + x.stack + "," + x.posInStack + " - " + pos.stack + "," + pos.posInStack + " == " + pls); 
+                                          return (pls == 1);
+                                      }});
+                }
                 break;
             case "above":
-                for (var pos of positions)
-                    positionTest.push({test: x => (x.stack == pos[0].stack && x.posInStack > pos[0].posInStack)});
+                for (var aoe of positions)
+                    positionTest.push({test: x => (x.stack == aoe[0].stack && x.posInStack > aoe[0].posInStack)});
                 break;
         } 
         return positionTest;
