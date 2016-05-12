@@ -129,7 +129,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             // find all destinations, and since "all" is not viable we will always get an array in the form of
             // [[P], [Q], [R], ...], and as such we flatten it with map
             var dests : string[] = posToIds(findEntities(cmd.location.entity, state).map(x => x[0]), state);
-            //console.log("===DEST=== " + JSON.stringify(dests, null, 2)); 
+            //console.log("===DEST=== " + JSON.stringify(dests, null, 2));
             for(var subs of subjects)
                 ors = ors.concat(combine(cmd.location.relation, subs, dests, state));
         }
