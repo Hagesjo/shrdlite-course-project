@@ -179,8 +179,8 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     }
 
     interface PositionTest {
-		bajs? : string,
-        test : (x : Position) => boolean
+        test : (x : Position, y : Position) => boolean,
+        pos : Position
     }
 
     function possToIdss(poss : Position[][], state : WorldState) : string[][] {
@@ -200,15 +200,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             // there are more restrictions
             var tests : PositionTest[] = findLocations(entity.object.location, state);
             var objs  : Position[]     = findObjects(entity.object.object, state);
-            console.log("AOSENTHAOESNTH");
-            for (var t of tests)
-                if (t.bajs)
-                    console.log("Test: " + t.bajs + " ? " + t.test({stack:0, posInStack: 238}));
-            for (var o of objs)
-                console.log("Object: " + o.stack + " " + o.posInStack);
-            var validObjs : Position[] = objs.filter(obj => tests.some(test => test.test(obj)));
-            for (var o of validObjs)
-                console.log("Valid Object: " + o.stack + " " + o.posInStack);
+            var validObjs : Position[] = objs.filter(obj => tests.some(test => test.test(test.pos, obj)));
             return checkQuantifier(entity.quantifier, validObjs);
         } else {
             // entity.object describes what entities we want to find
@@ -245,7 +237,6 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                 var size  : boolean = objectDesc.size  === null || objectDesc.size  === object.size;
                 var color : boolean = objectDesc.color === null || objectDesc.color === object.color;
                 if(form && size && color){
-                    console.log(stackIndex, objIndex);
                     entities.push({stack: stackIndex, posInStack: objIndex});
                 }
             }
@@ -285,39 +276,32 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         switch(location.relation){
             case "leftof":
                 for (var aoe of positions)
-                    positionTest.push({test: x => x.stack < aoe[0].stack});
+                    positionTest.push({pos: aoe[0], test: (x, y) => y.stack < x.stack});
                 break;
             case "rightof":
                 for (var aoe of positions)
-                    positionTest.push({test: x => x.stack > aoe[0].stack});
+                    positionTest.push({pos: aoe[0], test: (x, y) => y.stack > x.stack});
                 break;
             case "inside":
             case "ontop":
                 for (var aoe of positions)
-                    positionTest.push({test: x => (x.stack == aoe[0].stack && (x.posInStack-1) == aoe[0].posInStack)});
+                    positionTest.push({pos: aoe[0], test: (x, y) => (y.stack == x.stack && (y.posInStack-1) == x.posInStack)});
                 break;
             case "under":
                 for (var aoe of positions)
-                    positionTest.push({test: x => (x.stack == aoe[0].stack && x.posInStack < aoe[0].posInStack)});
+                    positionTest.push({pos: aoe[0], test: (x, y) => (y.stack == x.stack && y.posInStack < x.posInStack)});
                 break;
             case "beside":
                 for (var i = 0; i < positions.length; i++) {
                     var pos : Position = {stack: positions[i][0].stack, posInStack: positions[i][0].posInStack};
-                    positionTest.push({bajs: JSON.stringify(pos, null, 2),
-                                      test: x => {
-                                          var pls = (Math.abs(x.stack - pos.stack));
-                                          console.log("TEEEEEEEEEEEEEEEST");
-                                          console.log("bajs " + JSON.stringify(pos));
-                                          console.log("PLS " + x.stack + "," + x.posInStack + " - " + pos.stack + "," + pos.posInStack + " == " + pls); 
-                                          return (pls == 1);
-                                      }});
+                    positionTest.push({pos: pos, test: (x, y) => (Math.abs(y.stack - x.stack) == 1)});
                 }
                 break;
             case "above":
                 for (var aoe of positions)
-                    positionTest.push({test: x => (x.stack == aoe[0].stack && x.posInStack > aoe[0].posInStack)});
+                    positionTest.push({pos: aoe[0], test: (x, y) => (y.stack == x.stack && y.posInStack > x.posInStack)});
                 break;
-        } 
+        }
         return positionTest;
     }
 
@@ -344,6 +328,5 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
 
         return literal;
     }
-
 }
 
