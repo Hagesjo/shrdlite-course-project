@@ -129,28 +129,35 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             // find all destinations, and since "all" is not viable we will always get an array in the form of
             // [[P], [Q], [R], ...], and as such we flatten it with map
             var dests : string[] = posToIds(findEntities(cmd.location.entity, state).map(x => x[0]), state);
-            //console.log("===DEST=== " + JSON.stringify(dests, null, 2));
+            //console.log("===DEST=== " + JSON.stringify(dests, null, 2)); 
             for(var subs of subjects)
-                ors = ors.concat(combine(cmd.location.relation, subs, dests));
+                ors = ors.concat(combine(cmd.location.relation, subs, dests, state));
         }
         if(!ors.length)
             throw "unable to interpret";
         return ors;
     }
 
-    function combine(relation : string, lefts : string[], rights : string[]) : DNFFormula {
+    function combine(relation : string, lefts : string[], rights : string[], state : WorldState) : DNFFormula {
         var ors : DNFFormula = [];
         if(lefts.length === 1) {
-            for(var right of rights)
-                if (lefts[0] !== right)
-                    ors.push([{polarity: true, relation: relation, args: [lefts[0], right]}]);
+            for(var right of rights) {
+                var src_obj = state.objects[lefts[0]];
+                var dest_obj = state.objects[right];
+                if (lefts[0] !== right) {
+                    // Here be dragons
+                    if (!(relation === "inside" && src_obj.size === "large" && dest_obj.size === "small")) {
+                        ors.push([{polarity: true, relation: relation, args: [lefts[0], right]}]);
+                    }
+                }
+            }
         } else {
             var left : string = lefts.pop();
             for(var i : number = rights.length-1; i >= 0; i--) {
                 var l : string[] = lefts.slice();
                 var r : string[] = rights.slice();
                 var right : string = r.splice(i, 1)[0];
-                var dnf : DNFFormula = combine(relation, l, r);
+                var dnf : DNFFormula = combine(relation, l, r, state);
                 for(var or of dnf)
                     or.push({polarity: true, relation: relation, args: [left, right]});
                 ors = ors.concat(dnf);
