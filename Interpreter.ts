@@ -119,6 +119,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             // figure out what objects we want to manipulate
             subjects = possToIdss(findEntities(cmd.entity, state), state);
         }
+
         //console.log("===SUBS=== " + JSON.stringify(subjects, null, 2));
         var ors : DNFFormula = [];
         if(cmd.command === "take") {
@@ -246,6 +247,19 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             if (form !== "box")
                 throw("\"inside " + form + "\" does not make sense");
         }
+
+        if (location.relation === "on top of"){
+            var form : string;
+            if (location.entity.object.location === undefined)
+                form = location.entity.object.form;
+            else
+                form = location.entity.object.object.form;
+            if (form === "ball")
+                 throw("you can not put objects on balls")
+        }
+
+        if(cmd.location.relation === "on top of" && cmd.location.obj.form === "ball")
+                throw "we can't put objects on balls"
 
         var positions : Position[][] = findEntities(location.entity, state);
         var positionTest : PositionTest[] = [];
