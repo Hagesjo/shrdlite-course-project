@@ -211,9 +211,11 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                     throw "\"the\" is ambigous";
                 return [entities];
             case "any":
+            case "an":
                 return entities.map(x => [x]);
             case "all":
                 return [entities];
+
         }
         throw "unknown quantifier \"" + quantifier + "\"";
     }
@@ -225,11 +227,12 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             for(var objIndex = 0; objIndex < stack.length; objIndex++) {
                 var objId : string = stack[objIndex];
                 var object : ObjectDefinition = state.objects[objId];
-                var form  : boolean = objectDesc.form  === null || objectDesc.form  === object.form;
+                var form  : boolean = objectDesc.form  === null || objectDesc.form  === object.form || objectDesc.form == "anyform";
                 var size  : boolean = objectDesc.size  === null || objectDesc.size  === object.size;
                 var color : boolean = objectDesc.color === null || objectDesc.color === object.color;
-                if(form && size && color)
+                if(form && size && color){
                     entities.push({stack: stackIndex, posInStack: objIndex});
+                }
             }
         }
         return entities;
