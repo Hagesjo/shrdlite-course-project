@@ -146,7 +146,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                 var dest_obj = state.objects[right];
                 if (lefts[0] !== right) {
                     // Here be dragons
-                    if (!(relation === "inside" && src_obj.size === "large" && dest_obj.size === "small")) {
+                    if (!(relation === "inside" || relation === "on top of" && src_obj.size === "large" && dest_obj.size === "small")) {
                         ors.push([{polarity: true, relation: relation, args: [lefts[0], right]}]);
                     }
                 }
