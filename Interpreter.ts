@@ -142,7 +142,8 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         var ors : DNFFormula = [];
         if(lefts.length === 1) {
             for(var right of rights)
-                ors.push([{polarity: true, relation: relation, args: [lefts[0], right]}]);
+                if (lefts[0] !== right)
+                    ors.push([{polarity: true, relation: relation, args: [lefts[0], right]}]);
         } else {
             var left : string = lefts.pop();
             for(var i : number = rights.length-1; i >= 0; i--) {
@@ -268,7 +269,6 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                     positionTest.push({test: x => (x.stack == pos[0].stack && x.posInStack > pos[0].posInStack)});
                 break;
         } 
-        
         return positionTest;
     }
 
