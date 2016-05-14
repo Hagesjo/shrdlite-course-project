@@ -225,8 +225,6 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                     throw "\"the\" is ambigous";
                 return [entities];
             case "any":
-            case "an":
-            case "a":
                 return entities.map(x => [x]);
             case "all":
                 return [entities];
