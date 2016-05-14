@@ -117,7 +117,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             var dstObj : Parser.Object  = cmd.location.entity.object.location === undefined ? cmd.location.entity.object : cmd.location.entity.object.object;
             checkRelationInUtterence(srcQuantifier, srcObj, relation, dstQuantifier, dstObj);
         }
-        var subjects : Position[][];
+        var subjects : ObjectRef[][];
         if(cmd.command === "put") {
             // we want manipulate the object in the arm
             if(state.holding === null)
@@ -136,22 +136,41 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             for(var subs of subjects)
                 ors.push([{polarity: true, relation: "holding", args: [subs[0].objId]}]);
         } else {
-            // find all destinations, and since "all" is not viable we will always get an array in the form of
-            // [[P], [Q], [R], ...], and as such we flatten it with map
-            var dests : Position[] = findEntities(cmd.location.entity, state).map(x => x[0]);
+            //TODO implement CNF <-> DNF
+            var destss : ObjectRef[][] = findEntities(cmd.location.entity, state);
             //console.log("===DEST=== " + JSON.stringify(dests, null, 2));
             for(var subs of subjects)
-                ors = ors.concat(combine(cmd.location.relation, subs, dests, state));
+                ors = ors.concat(combineOneToAll(cmd.location.relation, subs[0], destss, state));
+                //ors = ors.concat(combineAllToOne(cmd.location.relation, subs, destss.map(x => x[0]), state));
         }
         if(!ors.length)
             throw "unable to interpret";
         return ors;
     }
 
-    function combine(relation : string, lefts : Position[], rights : Position[], state : WorldState) : DNFFormula {
+    // this can handled "put a ball beside all boxes"
+    function combineOneToAll(relation : string, left : ObjectRef, rightss : ObjectRef[][], state : WorldState) : DNFFormula {
+        var ors : DNFFormula = [];
+        var src_objId = left.objId;
+        var src_obj = state.objects[src_objId];
+        for(var rights of rightss) {
+            var ands : Conjunction = [];
+            for(var right of rights) {
+                var dest_objId = right.objId;
+                var dest_obj = state.objects[dest_objId];
+                if(checkPhysics(src_objId, src_obj, relation, dest_objId, dest_obj))
+                    ands.push({polarity: true, relation: relation, args: [src_objId, dest_objId]});
+            }
+            if(ands.length)
+                ors.push(ands);
+        }
+        return ors;
+    }
+
+    // this can handle "put all balls inside a box"
+    function combineAllToOne(relation : string, lefts : ObjectRef[], rights : ObjectRef[], state : WorldState) : DNFFormula {
         var ors : DNFFormula = [];
         if(lefts.length === 1) {
-            var left = lefts[0];
             var src_objId = left.objId;
             var src_obj = state.objects[src_objId];
             for(var right of rights) {
@@ -161,12 +180,12 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                     ors.push([{polarity: true, relation: relation, args: [src_objId, dest_objId]}]);
             }
         } else {
-            var left : Position = lefts.pop();
+            var left : ObjectRef = lefts.pop();
             for(var i : number = rights.length-1; i >= 0; i--) {
-                var l : Position[] = lefts.slice();
-                var r : Position[] = rights.slice();
-                var right : Position = r.splice(i, 1)[0];
-                var dnf : DNFFormula = combine(relation, l, r, state);
+                var l : ObjectRef[] = lefts.slice();
+                var r : ObjectRef[] = rights.slice();
+                var right : ObjectRef = r.splice(i, 1)[0];
+                var dnf : DNFFormula = combineAllToOne(relation, l, r, state);
                 if(checkPhysics(left.objId, state.objects[left.objId], relation, right.objId, state.objects[right.objId]))
                     for(var or of dnf)
                         or.push({polarity: true, relation: relation, args: [left.objId, right.objId]});
@@ -201,33 +220,36 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         return true;
     }
 
-    interface Position {
+    interface ObjectRef {
         objId : string,
         // if stack and posInStack is not present then the object doesn't really have a position, like "floor"
         stack? : number, posInStack? : number
     }
 
-    interface PositionTest {
+    interface ObjectPositionTest {
         // x should always be pos
-        test : (x : Position, y : Position) => boolean,
-        pos : Position
+        test : (x : ObjectRef, y : ObjectRef) => boolean,
+        pos : ObjectRef
     }
 
-    function findEntities(entity : Parser.Entity, state : WorldState) : Position[][] {
+    function findEntities(entity : Parser.Entity, state : WorldState) : ObjectRef[][] {
         if(entity.object.location !== undefined) {
             // there are more restrictions
-            var tests : PositionTest[] = findLocations(entity.quantifier, entity.object.object, entity.object.location, state);
-            var objs  : Position[]     = findObjects(entity.object.object, state);
-            var validObjs : Position[] = objs.filter(obj => tests.some(test => test.test(test.pos, obj)));
+            var orTests : ObjectPositionTest[][] = findLocations(entity.quantifier, entity.object.object, entity.object.location, state);
+            var objs  : ObjectRef[]     = findObjects(entity.object.object, state);
+            var validObjs : ObjectRef[] = objs.filter(
+                obj => orTests.some(
+                    ands => ands.every(
+                        test => test.test(test.pos, obj))));
             return checkQuantifier(entity.quantifier, validObjs);
         } else {
             // entity.object describes what entities we want to find
-            var objs : Position[] = findObjects(entity.object, state);
+            var objs : ObjectRef[] = findObjects(entity.object, state);
             return checkQuantifier(entity.quantifier, objs);
         }
     }
 
-    function checkQuantifier(quantifier : string, entities : Position[]) : Position[][] {
+    function checkQuantifier(quantifier : string, entities : ObjectRef[]) : ObjectRef[][] {
         switch(quantifier) {
             case "the":
                 if(entities.length > 1) // there can't be more than one "the"
@@ -242,8 +264,8 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         throw "unknown quantifier \"" + quantifier + "\"";
     }
 
-    function findObjects(objectDesc : Parser.Object, state : WorldState) : Position[] {
-        var entities : Position[] = [];
+    function findObjects(objectDesc : Parser.Object, state : WorldState) : ObjectRef[] {
+        var entities : ObjectRef[] = [];
         if(objectDesc.form === "floor") {
             // so for some reason the parser thinks that "small blue floor" is an ok utterance
             // that's all good, except that the floor can't have a size or color...
@@ -303,7 +325,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     }
 
     function findLocations(srcQuantifier : string, srcObj : Parser.Object,
-                           location : Parser.Location, state : WorldState) : PositionTest[]  {
+                           location : Parser.Location, state : WorldState) : ObjectPositionTest[][] {
         var dstQuantifier : string = location.entity.quantifier;
         var dstObj : Parser.Object;
         if(location.entity.object.location === undefined)
@@ -312,82 +334,95 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             dstObj = location.entity.object.object;
         checkRelationInUtterence(srcQuantifier, srcObj, location.relation, dstQuantifier, dstObj);
 
-        // TODO: we assume that findEntities returns [[P], [Q], [R], ...], but this is not true (anymore)
-        // therefor the utterence "put the large ball beside all boxes" (in world "small") only returns
-        // beside(e,l)
-        // when it should consider all boxes, i.e:
-        // beside(e,l) & beside(e,k) & beside(e,f)
-        var positions : Position[][] = findEntities(location.entity, state);
-        var positionTest : PositionTest[] = [];
+        var refss : ObjectRef[][] = findEntities(location.entity, state);
+        var refTestss : ObjectPositionTest[][] = [];
         switch(location.relation){
             case "leftof":
-                for (var aoe of positions) {
-                    if(aoe[0].stack === undefined) {
-                        positionTest.push({pos: aoe[0], test: (x, y) => leftof(x.objId, y)});
-                    } else {
-                        positionTest.push({pos: aoe[0], test: (x, y) => y.stack < x.stack});
+                for(var refs of refss) {
+                    var refTests : ObjectPositionTest[] = [];
+                    for(var ref of refs) {
+                        if(ref.stack === undefined)
+                            refTests.push({pos: ref, test: (x, y) => leftof(x.objId, y)});
+                        else
+                            refTests.push({pos: ref, test: (x, y) => y.stack < x.stack});
                     }
+                    refTestss.push(refTests);
                 }
                 break;
             case "rightof":
-                for (var aoe of positions) {
-                    if(aoe[0].stack === undefined) {
-                        positionTest.push({pos: aoe[0], test: (x, y) => rightof(x.objId, y)});
-                    } else {
-                        positionTest.push({pos: aoe[0], test: (x, y) => y.stack > x.stack});
+                for(var refs of refss) {
+                    var refTests : ObjectPositionTest[] = [];
+                    for(var ref of refs) {
+                        if(ref.stack === undefined)
+                            refTests.push({pos: ref, test: (x, y) => rightof(x.objId, y)});
+                        else
+                            refTests.push({pos: ref, test: (x, y) => y.stack > x.stack});
                     }
+                    refTestss.push(refTests);
                 }
                 break;
             case "inside":
             case "ontop":
-                for (var aoe of positions) {
-                    if(aoe[0].stack === undefined) {
-                        positionTest.push({pos: aoe[0], test: (x, y) => ontop(x.objId, y)});
-                    } else {
-                        positionTest.push({pos: aoe[0], test: (x, y) => (y.stack == x.stack && (y.posInStack-1) == x.posInStack)});
+                for(var refs of refss) {
+                    var refTests : ObjectPositionTest[] = [];
+                    for(var ref of refs) {
+                        if(ref.stack === undefined)
+                            refTests.push({pos: ref, test: (x, y) => ontop(x.objId, y)});
+                        else
+                            refTests.push({pos: ref, test: (x, y) => (y.stack == x.stack && (y.posInStack-1) == x.posInStack)});
                     }
+                    refTestss.push(refTests);
                 }
                 break;
             case "under":
-                for (var aoe of positions) {
-                    if(aoe[0].stack === undefined) {
-                        positionTest.push({pos: aoe[0], test: (x, y) => under(x.objId, y)});
-                    } else {
-                        positionTest.push({pos: aoe[0], test: (x, y) => (y.stack == x.stack && y.posInStack < x.posInStack)});
+                for(var refs of refss) {
+                    var refTests : ObjectPositionTest[] = [];
+                    for(var ref of refs) {
+                        if(ref.stack === undefined)
+                            refTests.push({pos: ref, test: (x, y) => under(x.objId, y)});
+                        else
+                            refTests.push({pos: ref, test: (x, y) => (y.stack == x.stack && y.posInStack < x.posInStack)});
                     }
+                    refTestss.push(refTests);
                 }
                 break;
             case "beside":
-                for (var aoe of positions) {
-                    if(aoe[0].stack === undefined) {
-                        positionTest.push({pos: aoe[0], test: (x, y) => beside(x.objId, y)});
-                    } else {
-                        positionTest.push({pos: aoe[0], test: (x, y) => (Math.abs(y.stack - x.stack) == 1)});
+                for(var refs of refss) {
+                    var refTests : ObjectPositionTest[] = [];
+                    for(var ref of refs) {
+                        if(ref.stack === undefined)
+                            refTests.push({pos: ref, test: (x, y) => beside(x.objId, y)});
+                        else
+                            refTests.push({pos: ref, test: (x, y) => (Math.abs(y.stack - x.stack) == 1)});
                     }
+                    refTestss.push(refTests);
                 }
                 break;
             case "above":
-                for (var aoe of positions) {
-                    if(aoe[0].stack === undefined) {
-                        positionTest.push({pos: aoe[0], test: (x, y) => above(x.objId, y)});
-                    } else {
-                        positionTest.push({pos: aoe[0], test: (x, y) => (y.stack == x.stack && y.posInStack > x.posInStack)});
+                for(var refs of refss) {
+                    var refTests : ObjectPositionTest[] = [];
+                    for(var ref of refs) {
+                        if(ref.stack === undefined)
+                            refTests.push({pos: ref, test: (x, y) => above(x.objId, y)});
+                        else
+                            refTests.push({pos: ref, test: (x, y) => (y.stack == x.stack && y.posInStack > x.posInStack)});
                     }
+                    refTestss.push(refTests);
                 }
                 break;
         }
-        return positionTest;
+        return refTestss;
     }
 
-    function leftof(objId : string, pos : Position) : boolean {
+    function leftof(objId : string, pos : ObjectRef) : boolean {
         throw("left of \"" + objId + "\" doesn't make sense");
     }
 
-    function rightof(objId : string, pos : Position) : boolean {
+    function rightof(objId : string, pos : ObjectRef) : boolean {
         throw("right of \"" + objId + "\" doesn't make sense");
     }
 
-    function ontop(objId : string, pos : Position) : boolean {
+    function ontop(objId : string, pos : ObjectRef) : boolean {
         switch(objId) {
             case "floor":
                 return pos.posInStack === 0;
@@ -395,15 +430,15 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         throw("on top \"" + objId + "\" doesn't make sense");
     }
 
-    function under(objId : string, pos : Position) : boolean {
+    function under(objId : string, pos : ObjectRef) : boolean {
         throw("under \"" + objId + "\" doesn't make sense");
     }
 
-    function beside(objId : string, pos : Position) : boolean {
+    function beside(objId : string, pos : ObjectRef) : boolean {
         throw("beside \"" + objId + "\" doesn't make sense");
     }
 
-    function above(objId : string, pos : Position) : boolean {
+    function above(objId : string, pos : ObjectRef) : boolean {
         throw("above \"" + objId + "\" doesn't make sense");
     }
 
