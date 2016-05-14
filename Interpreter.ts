@@ -95,12 +95,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     //////////////////////////////////////////////////////////////////////
     // private functions
     /**
-     * The core interpretation function. The code here is just a
-     * template; you should rewrite this function entirely. In this
-     * template, the code produces a dummy interpretation which is not
-     * connected to `cmd`, but your version of the function should
-     * analyse cmd in order to figure out what interpretation to
-     * return.
+     * The core interpretation function.
      * @param cmd The actual command. Note that it is *not* a string, but rather an object of type `Command` (as it has been parsed by the parser).
      * @param state The current state of the world. Useful to look up objects in the world.
      * @returns A list of list of Literal, representing a formula in disjunctive normal form (disjunction of conjunctions). See the dummy interpetation returned in the code for an example, which means ontop(a,floor) AND holding(b).
@@ -129,7 +124,6 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             subjects = findEntities(cmd.entity, state);
         }
 
-        //console.log("===SUBS=== " + JSON.stringify(subjects, null, 2));
         var ors : DNFFormula = [];
         if(cmd.command === "take") {
             // the object should end up in our arm
@@ -138,7 +132,6 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         } else {
             //TODO implement CNF <-> DNF
             var destss : ObjectRef[][] = findEntities(cmd.location.entity, state);
-            //console.log("===DEST=== " + JSON.stringify(dests, null, 2));
             for(var subs of subjects)
                 ors = ors.concat(combineOneToAll(cmd.location.relation, subs[0], destss, state));
                 //ors = ors.concat(combineAllToOne(cmd.location.relation, subs, destss.map(x => x[0]), state));
