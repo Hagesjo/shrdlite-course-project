@@ -276,7 +276,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                 throw("\"inside " + form + "\" does not make sense");
         }
 
-        if (location.relation === "on top of"){
+        if (location.relation === "ontop"){
             var form : string;
             if (location.entity.object.location === undefined)
                 form = location.entity.object.form;
