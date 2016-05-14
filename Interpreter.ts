@@ -109,6 +109,14 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         //console.log("===CMD=== " + JSON.stringify(cmd, null, 2) + "\n");
         if(cmd.command === "take" && cmd.entity.quantifier === "all")
             throw "we can't pick up more than one object";
+        if(cmd.command === "move") {
+            var srcQuantifier : string = cmd.entity.quantifier;
+            var srcObj : Parser.Object = cmd.entity.object.location === undefined ? cmd.entity.object : cmd.entity.object.object;
+            var relation : string      = cmd.location.relation;
+            var dstQuantifier : string = cmd.location.entity.quantifier;
+            var dstObj : Parser.Object  = cmd.location.entity.object.location === undefined ? cmd.location.entity.object : cmd.location.entity.object.object;
+            checkRelationInUtterence(srcQuantifier, srcObj, relation, dstQuantifier, dstObj);
+        }
         var subjects : Position[][];
         if(cmd.command === "put") {
             // we want manipulate the object in the arm
@@ -149,20 +157,8 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             for(var right of rights) {
                 var dest_objId = right.objId;
                 var dest_obj = state.objects[dest_objId];
-                if (src_objId !== dest_objId) {
-                    // Here be dragons
-                    // right.stack === undefined means that it's not an actual object (e.g. "floor")
-                    if (right.stack === undefined || !
-                        (
-                         (relation === "inside" || relation === "ontop" || relation === "under") &&
-                         (
-                          (src_obj.size === "large" && dest_obj.size === "small") ||
-                          (src_obj.form === "ball" && dest_obj.form !== "floor" && dest_obj.form !== "box" )
-                         )
-                        )
-                       )
-                        ors.push([{polarity: true, relation: relation, args: [src_objId, dest_objId]}]);
-                }
+                if(checkPhysics(src_objId, src_obj, relation, dest_objId, dest_obj))
+                    ors.push([{polarity: true, relation: relation, args: [src_objId, dest_objId]}]);
             }
         } else {
             var left : Position = lefts.pop();
@@ -177,6 +173,31 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             }
         }
         return ors;
+    }
+
+    function checkPhysics(srcId : string, srcObj : ObjectDefinition,
+                          relation : string, dstId : string,
+                          dstObj : ObjectDefinition) : boolean {
+        if(srcId === dstId)
+            return false;
+        if(dstObj === undefined) // not an object, probably "floor"
+            return true;
+        switch(relation) {
+            case "inside":
+            case "ontop":
+                if(srcObj.size === "large" && dstObj.size === "small")
+                    return false;
+                if(srcObj.form === "ball" && dstObj.form !== "floor" && dstObj.form !== "box")
+                    return false;
+                break;
+            case "under":
+                if(dstObj.size === "large" && srcObj.size === "small")
+                    return false;
+                if(dstObj.form === "ball" && srcObj.form !== "floor" && srcObj.form !== "box")
+                    return false;
+                break;
+        }
+        return true;
     }
 
     interface Position {
@@ -207,7 +228,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     function findEntities(entity : Parser.Entity, state : WorldState) : Position[][] {
         if(entity.object.location !== undefined) {
             // there are more restrictions
-            var tests : PositionTest[] = findLocations(entity.object.location, state);
+            var tests : PositionTest[] = findLocations(entity.quantifier, entity.object.object, entity.object.location, state);
             var objs  : Position[]     = findObjects(entity.object.object, state);
             var validObjs : Position[] = objs.filter(obj => tests.some(test => test.test(test.pos, obj)));
             return checkQuantifier(entity.quantifier, validObjs);
@@ -260,33 +281,54 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         return entities;
     }
 
-    function findLocations(location: Parser.Location, state : WorldState) : PositionTest[]  {
- 
-        if (location.entity.quantifier === "all")
-            throw "\"all\" does not makes sense in this context";
-       
-        if (location.relation === "inside"){ 
-            var form : string;
-            if (location.entity.object.location === undefined)
-                form = location.entity.object.form;
-            else
-                form = location.entity.object.object.form;
-
-            if (form !== "box")
-                throw("\"inside " + form + "\" does not make sense");
+    function checkRelationInUtterence(srcQuantifier : string, srcObj : Parser.Object,
+                                      relation : string,
+                                      dstQuantifier : string, dstObj : Parser.Object) : void {
+        // check for relation/form
+        switch(relation) {
+            case "inside":
+                if(dstObj.form !== "box")
+                    throw("\"inside " + dstObj.form + "\" does not make sense");
+                break;
+            case "ontop":
+                if(dstObj.form === "ball")
+                    throw("you can not put objects on balls")
+                break;
         }
-
-        if (location.relation === "ontop"){
-            var form : string;
-            if (location.entity.object.location === undefined)
-                form = location.entity.object.form;
-            else
-                form = location.entity.object.object.form;
-            if (form === "ball")
-                 throw("you can not put objects on balls")
+        // check for relation/quantity
+        switch(relation) {
+            case "inside":
+            case "ontop":
+                switch(srcQuantifier) {
+                    case "the":
+                    case "any":
+                        if(dstQuantifier === "all")
+                            throw("\"" + srcQuantifier + " ... " + relation + " all\" doesn't make sense");
+                        break;
+                    case "all":
+                        if(dstQuantifier === "the")
+                            throw("\"all ... " + relation + " the\" doesn't make sense");
+                        break;
+                }
+                break;
         }
+    }
 
+    function findLocations(srcQuantifier : string, srcObj : Parser.Object,
+                           location : Parser.Location, state : WorldState) : PositionTest[]  {
+        var dstQuantifier : string = location.entity.quantifier;
+        var dstObj : Parser.Object;
+        if(location.entity.object.location === undefined)
+            dstObj = location.entity.object;
+        else
+            dstObj = location.entity.object.object;
+        checkRelationInUtterence(srcQuantifier, srcObj, location.relation, dstQuantifier, dstObj);
 
+        // TODO: we assume that findEntities returns [[P], [Q], [R], ...], but this is not true (anymore)
+        // therefor the utterence "put the large ball beside all boxes" (in world "small") only returns
+        // beside(e,l)
+        // when it should consider all boxes, i.e:
+        // beside(e,l) & beside(e,k) & beside(e,f)
         var positions : Position[][] = findEntities(location.entity, state);
         var positionTest : PositionTest[] = [];
         switch(location.relation){
