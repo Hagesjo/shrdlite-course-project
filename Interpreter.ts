@@ -167,8 +167,9 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                 var r : Position[] = rights.slice();
                 var right : Position = r.splice(i, 1)[0];
                 var dnf : DNFFormula = combine(relation, l, r, state);
-                for(var or of dnf)
-                    or.push({polarity: true, relation: relation, args: [left.objId, right.objId]});
+                if(checkPhysics(left.objId, state.objects[left.objId], relation, right.objId, state.objects[right.objId]))
+                    for(var or of dnf)
+                        or.push({polarity: true, relation: relation, args: [left.objId, right.objId]});
                 ors = ors.concat(dnf);
             }
         }
