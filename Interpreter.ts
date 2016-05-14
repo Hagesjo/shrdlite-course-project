@@ -213,19 +213,6 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         pos : Position
     }
 
-    function possToIdss(poss : Position[][], state : WorldState) : string[][] {
-        return poss.map(pos => posToIds(pos, state));
-    }
-
-    function posToIds(pos : Position[], state : WorldState) : string[] {
-        return pos.map(pos => posToId(pos, state));
-    }
-
-    function posToId(pos : Position, state : WorldState) : string {
-        return pos.objId;
-        //return state.stacks[pos.stack][pos.posInStack];
-    }
-
     function findEntities(entity : Parser.Entity, state : WorldState) : Position[][] {
         if(entity.object.location !== undefined) {
             // there are more restrictions
@@ -420,28 +407,5 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         throw("above \"" + objId + "\" doesn't make sense");
     }
 
-    function literal(cmd : string, ...args : string[]) : Literal {
-        /* Negation? */
-        var pattern = /^-/g;
-        var polarity: boolean = !pattern.test(cmd);
-        
-        /* Relation */
-        pattern = /[^-]\w+/g;
-        var relation: string  = pattern.exec(cmd).toString();
-
-        /* Create Literal */
-        var literal:Literal = {
-            polarity : polarity,
-            relation : relation,
-            args : args
-        };
-
-        /* Testing 
-        //console.log("pol: " + polarity);
-        //console.log("rel: " + relation);
-        //console.log("args: " + args); */
-
-        return literal;
-    }
 }
 
