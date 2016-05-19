@@ -78,81 +78,203 @@ module Planner {
      * be added using the `push` method.
      */
     function planInterpretation(interpretation : Interpreter.DNFFormula, state : WorldState) : string[] {
-        var plan : string[] = [];
-
         var graph = new PGraph();
-        var startNode = new PNode(state.stacks, state.holding, state.arm);
-        
-
+        var startNode = new PNode(state.stacks, state.holding, state.arm, null);
+        var goalFun = (node : PNode) => goal(interpretation, node);
+        var heuristicsFun = (node : PNode) => heuristics(interpretation, node);
+        var timeout = 10;
+        //var goalNode = new PNode(startNode.stacks, startNode.holding, startNode.arm, null);
+        //goalNode.stacks = goalNode.stacks.slice();
+        //for(var i = 0; i < goalNode.stacks.length; i++)
+        //    goalNode.stacks[i] = goalNode.stacks[i].slice();
+        //goalNode.stacks[0].pop();
+        //goalNode.stacks[1].push("e");
+        //goalNode.arm++;
+        //console.log("START " + JSON.stringify(startNode));
+        //console.log("GOAL " + JSON.stringify(goalNode));
+        //console.log("PLS " + goalFun(goalNode));
+        var aStar = aStarSearch(graph, startNode, goalFun, heuristicsFun, timeout);
+        //console.log("AIDS: " + JSON.stringify(aStar, null, 2));
+        var plan : string[] = [];
+        for(var node of aStar.path)
+            plan.push(node.action);
         return plan;
     }
 
 }
 
-function goal(interpretation : Interpreter.DNFFormula, state: WorldState, n: PNode) : boolean {
-    var goal : boolean = false;
-
+function goal(interpretation : Interpreter.DNFFormula, n: PNode) : boolean {
     for (var i = 0; i < interpretation.length; i++) {
-        var condSatisfied : boolean = false;
+        var condSatisfied : boolean = true;
 
         for (var j = 0; j < interpretation[i].length; j++) {
             var condition = interpretation[i][j];
             var firstArg : string = condition.args[0];
 
             if (condition.relation === "holding") {
-                if (state.holding === firstArg)
-                    condSatisfied = true;
+                if (n.holding !== firstArg) {
+                    condSatisfied = false;
+                    break;
+                }
             } else {
                 var secArg : string = condition.args[1];
-                var firstCord : Coordinate = findIndex(firstArg, state);
+                if(n.holding === firstArg || n.holding === secArg) {
+                    condSatisfied = false;
+                    break;
+                }
+                var firstCord : Coordinate = findIndex(firstArg, n.stacks);
                 
-                if (secArg !== "floor") {
-                    var secCord : Coordinate = findIndex(secArg, state);
+                if(secArg === "floor") {
+                    switch(condition.relation) {
+                        case "ontop":
+                            if(firstCord.y !== 0)
+                                condSatisfied = false;
+                            break;
+                        case "above":
+                            break;
+                    }
+                } else {
+                    var secCord : Coordinate = findIndex(secArg, n.stacks);
                     
-                    if (condition.relation === "leftof") {
-                        if (firstCord.x < secCord.x) condSatisfied = true;    
-                    } else if (condition.relation === "rightof") {
-                        if (firstCord.x > secCord.x) condSatisfied = true;
-                    } else if (condition.relation === "above") {
-                        if (firstCord.x === secCord.x && firstCord.y > secCord.y)
-                            condSatisfied = true;
-                    } else if (condition.relation === "under") {
-                        if (firstCord.x === secCord.x && firstCord.y < secCord.y)
-                            condSatisfied = true;
-                    } else if (condition.relation === "beside") {
-                        if (Math.abs(firstCord.x - secCord.x) == 1)
-                           condSatisfied = true; 
-                    } else if (condition.relation === "ontop") {
-                        if (firstCord.x === secCord.x && (firstCord.y-secCord.y) == 1)
-                           condSatisfied = true; 
+                    switch(condition.relation) {
+                        case "leftof":
+                            if (firstCord.x >= secCord.x) 
+                                condSatisfied = false;    
+                            break;
+                        case "rightof":
+                            if (firstCord.x <= secCord.x) 
+                                condSatisfied = false;
+                            break;
+                        case "above":
+                            if (firstCord.x !== secCord.x || firstCord.y <= secCord.y)
+                                condSatisfied = false;
+                            break;
+                        case "under":
+                            if (firstCord.x !== secCord.x || firstCord.y >= secCord.y)
+                                condSatisfied = false;
+                            break;
+                        case "beside":
+                            if (Math.abs(firstCord.x - secCord.x) !== 1)
+                                condSatisfied = false; 
+                            break;
+                        case "ontop":
+                        case "inside":
+                            if (firstCord.x !== secCord.x || firstCord.y - secCord.y !== 1)
+                                condSatisfied = false; 
+                            break;
                     }
                 }
             }       
         }
-        if (condSatisfied) goal = true;
+        if (condSatisfied)
+            return true;
     }
-    return goal;
+    return false;
 }
 
-function findIndex(obj : string, state : WorldState) {
+function heuristics(ors : Interpreter.DNFFormula, node : PNode) : number {
+    var min : number = Infinity;
+    for(var ands of ors) {
+        var andMin : number = 0;
+        for(var and of ands) {
+            switch(and.relation) {
+                case "holding":
+                    if(node.holding === and.args[0]) {
+                        // do nothing
+                    } else {
+                        var srcCoord = findIndex(and.args[0], node.stacks);
+                        if(node.holding !== null)
+                            andMin++; // drop whatever it is we're holding
+                        andMin += Math.abs(node.arm - srcCoord.x); // move the arm above src
+                        andMin++; // pick
+                    }
+                    break;
+                default:
+                    if(node.holding === and.args[0]) {
+                        if(and.args[1] === "floor") {
+                            //TODO find nearest empty stack
+                            andMin++; // drop
+                        } else {
+                            var dstCoord : Coordinate = findIndex(and.args[1], node.stacks);
+                            andMin += Math.abs(dstCoord.x - node.arm); // move the arm above dst
+                            andMin++; // drop
+                        }
+                    } else if(node.holding === and.args[1]) {
+                        var srcCoord : Coordinate = findIndex(and.args[0], node.stacks);
+                        var dstCoord : Coordinate = {x: node.arm, y: node.stacks[node.arm].length};
+                        andMin++; // drop dst
+                        andMin += Math.abs(node.arm - srcCoord.x); // move the arm above src
+                        andMin++; // pickup
+                        andMin += Math.abs(dstCoord.x - srcCoord.x); // move the arm above dst
+                        andMin++; // drop
+                    } else {
+                        if(node.holding !== null)
+                            andMin++; // drop whatever it is we're holding
+                        var srcCoord : Coordinate = findIndex(and.args[0], node.stacks);
+                        andMin += Math.abs(node.arm - srcCoord.x); // move the arm above src
+                        andMin++; // pickup
+                        if(and.args[1] === "floor") {
+                            //TODO find nearest empty stack
+                            andMin++; // move to adjacent stack
+                            andMin++; // drop
+                        } else {
+                            var dstCoord : Coordinate = findIndex(and.args[1], node.stacks);
+                            andMin += Math.abs(dstCoord.x - srcCoord.x); // move the arm above dst
+                            andMin++; // drop
+                        }
+                    }
+                    break;
+            }
+        }
+        min = Math.min(min, andMin);
+    }
+    return min;
+}
+
+function findIndex(obj : string, stacks : Stack[]) {
     var coordinate : Coordinate = undefined;
 
-    for (var i = 0; i < state.stacks.length; i++){
-        for (var j = 0; j < state.stacks[i].length; j++) {
-            if (state.stacks[i][j] === obj) {
-                coordinate = {x:i, y:j};
-                break;    
+    for (var i = 0; i < stacks.length; i++){
+        for (var j = 0; j < stacks[i].length; j++) {
+            if (stacks[i][j] === obj) {
+                return {x:i, y:j};
             }
         }
     }
     
-    return coordinate;
+    throw("no index for " + obj);
 }
 
 class PGraph implements Graph<PNode> {
 
     outgoingEdges(node: PNode) : Edge<PNode>[] {
-        return undefined; 
+        // we need to be careful and not create side effects
+        var edges : Edge<PNode>[] = [];
+        if(node.arm > 0) {
+            var left : PNode = new PNode(node.stacks, node.holding, node.arm, "l");
+            left.arm--;
+            edges.push({from: node, to: left, cost: 1});
+        }
+        if(node.arm < node.stacks.length - 1) {
+            var right : PNode = new PNode(node.stacks, node.holding, node.arm, "r");
+            right.arm++;
+            edges.push({from: node, to: right, cost: 1});
+        }
+        if(node.holding === null && node.stacks[node.arm].length) {
+            var pick : PNode = new PNode(node.stacks.slice(), node.holding, node.arm, "p");
+            pick.stacks[pick.arm] = pick.stacks[pick.arm].slice();
+            pick.holding = pick.stacks[pick.arm].pop();
+            edges.push({from: node, to: pick, cost: 1});
+        }
+        if(node.holding !== null) {
+            //TODO checkPhysics
+            var drop : PNode = new PNode(node.stacks.slice(), node.holding, node.arm, "d");
+            drop.stacks[drop.arm] = drop.stacks[drop.arm].slice();
+            drop.stacks[drop.arm].push(drop.holding);
+            drop.holding = null;
+            edges.push({from: node, to: drop, cost: 1});
+        }
+        return edges;
     }
 
    compareNodes : collections.ICompareFunction<PNode> = function (a : PNode, b : PNode) {
@@ -162,14 +284,14 @@ class PGraph implements Graph<PNode> {
 }
 
 class PNode {
-    stack: Stack[];
-    holding: string;
-    arm: number;
 
-    constructor (public _stack : Stack[], public _holding : string, public _arm : number) {
-        this.stack = _stack;
-        this.holding = _holding;
-        this.arm = _arm;
-    }
+    constructor (
+        public stacks : Stack[], 
+        public holding : string, 
+        public arm : number,
+        public action : string
+    ) {}
+
+    public toString = () : string => JSON.stringify(this);
 
 }
