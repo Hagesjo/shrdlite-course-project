@@ -197,10 +197,23 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             return true;
         switch(relation) {
             case "inside":
-            case "ontop":
-                if(srcObj.size === "large" && dstObj.size === "small")
+				if(dstObj.form !== "box")                                                                                                                       //Objects are “inside” boxes, but “ontop” of other objects.
+					return false;
+                if(srcObj.size === "large" && dstObj.size === "small")																						//Small objects cannot support large objects.
                     return false;
-                if(srcObj.form === "ball" && dstObj.form !== "floor" && dstObj.form !== "box")
+                if((srcObj.form === "pyramid" || srcObj.form === "plank" || srcObj.form === "box") && dstObj.form === "box" && srcObj.form === dstObj.form) //Boxes cannot contain pyramids, planks or boxes of the same size
+                    return false;
+                break;
+            case "ontop":
+				if(dstObj.form === "box") 																														//Objects are “inside” boxes, but “ontop” of other objects.
+					return false;																													
+                if(srcObj.size === "large" && dstObj.size === "small")																						//Small objects cannot support large objects.
+                    return false;
+                if(srcObj.form === "ball" && dstObj.form !== "floor")	                        															//Balls must be in boxes or on the floor, otherwise they roll away.
+                    return false;
+                if(srcObj.size === "small" && srcObj.form === "box" && dstObj.size === "small" && (dstObj.form === "pyramid" || dstObj.form === "plank"))   //Small boxes cannot be supported by small bricks or pyramids.
+                    return false;
+                if(srcObj.size === "large" && srcObj.form === "box" && dstObj.size === "large" && dstObj.form === "pyramid")   								//Large boxes cannot be supported by large pyramids.
                     return false;
                 break;
             case "under":
@@ -295,7 +308,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                 break;
             case "ontop":
                 if(dstObj.form === "ball")
-                    throw("you can not put objects on balls")
+                    throw("you can not put objects on balls") // Balls cannot support anything.
                 break;
         }
         // check for relation/quantity
