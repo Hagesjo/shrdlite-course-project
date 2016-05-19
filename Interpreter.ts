@@ -364,7 +364,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                         if(ref.stack === undefined)
                             refTests.push({pos: ref, test: (x, y) => leftof(x.objId, y)});
                         else
-                            refTests.push({pos: ref, test: (x, y) => y.stack < x.stack});
+                            refTests.push({pos: ref, test: (x, y) => y.stack < x.stack && x.stack !== 0});
                     }
                     refTestss.push(refTests);
                 }
@@ -376,7 +376,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                         if(ref.stack === undefined)
                             refTests.push({pos: ref, test: (x, y) => rightof(x.objId, y)});
                         else
-                            refTests.push({pos: ref, test: (x, y) => y.stack > x.stack});
+                            refTests.push({pos: ref, test: (x, y) => y.stack > x.stack && x.stack !== state.stacks.length-1});
                     }
                     refTestss.push(refTests);
                 }
