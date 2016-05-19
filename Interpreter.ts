@@ -197,16 +197,16 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             return true;
         switch(relation) {
             case "inside":
-				if(dstObj.form !== "box")                                                                                                                       //Objects are “inside” boxes, but “ontop” of other objects.
-					return false;
+                if(dstObj.form !== "box")                                                                                                                       //Objects are “inside” boxes, but “ontop” of other objects.
+                    return false;
                 if(srcObj.size === "large" && dstObj.size === "small")																						//Small objects cannot support large objects.
                     return false;
-                if((srcObj.form === "pyramid" || srcObj.form === "plank" || srcObj.form === "box") && dstObj.form === "box" && srcObj.form === dstObj.form) //Boxes cannot contain pyramids, planks or boxes of the same size
+                if((srcObj.form === "pyramid" || srcObj.form === "plank" || srcObj.form === "box") && dstObj.form === "box" && srcObj.size === dstObj.size) //Boxes cannot contain pyramids, planks or boxes of the same size
                     return false;
                 break;
             case "ontop":
-				if(dstObj.form === "box") 																														//Objects are “inside” boxes, but “ontop” of other objects.
-					return false;																													
+                if(dstObj.form === "box") 																														//Objects are “inside” boxes, but “ontop” of other objects.
+                    return false;																													
                 if(srcObj.size === "large" && dstObj.size === "small")																						//Small objects cannot support large objects.
                     return false;
                 if(srcObj.form === "ball" && dstObj.form !== "floor")	                        															//Balls must be in boxes or on the floor, otherwise they roll away.
