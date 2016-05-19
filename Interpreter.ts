@@ -102,11 +102,15 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
      */
     function interpretCommand(cmd : Parser.Command, state : WorldState) : DNFFormula {
         //console.log("===CMD=== " + JSON.stringify(cmd, null, 2) + "\n");
-        if(cmd.command === "take" && cmd.entity.quantifier === "all")
-            throw "we can't pick up more than one object";
+        var srcQuantifier : string = cmd.entity.quantifier;
+        var srcObj : Parser.Object = cmd.entity.object.location === undefined ? cmd.entity.object : cmd.entity.object.object;
+        if(cmd.command === "take") {
+           if(cmd.entity.quantifier === "all")
+               throw "we can't pick up more than one object";
+           if(srcObj.form === "floor")
+               throw "'Take the floor' does not make sense"
+        }
         if(cmd.command === "move") {
-            var srcQuantifier : string = cmd.entity.quantifier;
-            var srcObj : Parser.Object = cmd.entity.object.location === undefined ? cmd.entity.object : cmd.entity.object.object;
             var relation : string      = cmd.location.relation;
             var dstQuantifier : string = cmd.location.entity.quantifier;
             var dstObj : Parser.Object  = cmd.location.entity.object.location === undefined ? cmd.location.entity.object : cmd.location.entity.object.object;
@@ -115,6 +119,8 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         var subjects : ObjectRef[][];
         if(cmd.command === "put") {
             // we want manipulate the object in the arm
+            if(srcObj.form === "floor")
+                throw "Håller du på att lägga nytt golv?"
             if(state.holding === null)
                 throw "we aren't holding anything";
             // this will break, eventually
@@ -195,6 +201,8 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             return false;
         if(dstObj === undefined) // not an object, probably "floor"
             return true;
+        if(srcObj.form === "floor")
+            return false;
         switch(relation) {
             case "inside":
                 if(dstObj.form !== "box")                                                                                                                       //Objects are “inside” boxes, but “ontop” of other objects.
@@ -217,9 +225,15 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                     return false;
                 break;
             case "under":
+                if(dstObj.form === "floor")
+                    return false;
                 if(dstObj.size === "large" && srcObj.size === "small")
                     return false;
                 if(dstObj.form === "ball" && srcObj.form !== "floor" && srcObj.form !== "box")
+                    return false;
+                break;
+            case "beside":
+                if(dstObj.form === "floor")
                     return false;
                 break;
         }
