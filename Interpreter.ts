@@ -170,14 +170,26 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     function combineAllToOne(relation : string, lefts : ObjectRef[], rights : ObjectRef[], state : WorldState) : DNFFormula {
         var ors : DNFFormula = [];
         if(lefts.length === 1) {
-            var src_objId = left.objId;
+            var src_objId = lefts[0].objId;
             var src_obj = state.objects[src_objId];
             for(var right of rights) {
-                var dest_objId = right.objId;
-                var dest_obj = state.objects[dest_objId];
-                if(checkPhysics(src_objId, src_obj, relation, dest_objId, dest_obj))
-                    ors.push([{polarity: true, relation: relation, args: [src_objId, dest_objId]}]);
+                var dst_objId = right.objId;
+                var dst_obj = state.objects[dst_objId];
+                if(checkPhysics(src_objId, src_obj, relation, dst_objId, dst_obj))
+                    ors.push([{polarity: true, relation: relation, args: [src_objId, dst_objId]}]);
             }
+        } else if(rights.length === 1) {
+            var and : Conjunction = [];
+            var dst_objId = rights[0].objId;
+            var dst_obj = state.objects[dst_objId];
+            for(var left of lefts) {
+                var src_objId = left.objId;
+                var src_obj = state.objects[src_objId];
+                if(checkPhysics(src_objId, src_obj, relation, dst_objId, dst_obj))
+                    and.push({polarity: true, relation: relation, args: [src_objId, dst_objId]});
+            }
+            if(and.length)
+                ors.push(and);
         } else {
             var left : ObjectRef = lefts.pop();
             for(var i : number = rights.length-1; i >= 0; i--) {
@@ -336,7 +348,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                             throw("\"" + srcQuantifier + " ... " + relation + " all\" doesn't make sense");
                         break;
                     case "all":
-                        if(dstQuantifier === "the")
+                        if(dstQuantifier === "the" && dstObj.form !== "floor")
                             throw("\"all ... " + relation + " the\" doesn't make sense");
                         break;
                 }
