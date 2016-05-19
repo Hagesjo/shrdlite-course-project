@@ -1,5 +1,8 @@
 ///<reference path="World.ts"/>
 ///<reference path="Interpreter.ts"/>
+///<reference path="Graph.ts"/>
+///<reference path="GridGraph.ts"/>
+
 
 /** 
 * Planner module
@@ -75,49 +78,98 @@ module Planner {
      * be added using the `push` method.
      */
     function planInterpretation(interpretation : Interpreter.DNFFormula, state : WorldState) : string[] {
-        // This function returns a dummy plan involving a random stack
-        do {
-            var pickstack = Math.floor(Math.random() * state.stacks.length);
-        } while (state.stacks[pickstack].length == 0);
         var plan : string[] = [];
 
-        // First move the arm to the leftmost nonempty stack
-        if (pickstack < state.arm) {
-            plan.push("Moving left");
-            for (var i = state.arm; i > pickstack; i--) {
-                plan.push("l");
-            }
-        } else if (pickstack > state.arm) {
-            plan.push("Moving right");
-            for (var i = state.arm; i < pickstack; i++) {
-                plan.push("r");
-            }
-        }
-
-        // Then pick up the object
-        var obj = state.stacks[pickstack][state.stacks[pickstack].length-1];
-        plan.push("Picking up the " + state.objects[obj].form,
-                  "p");
-
-        if (pickstack < state.stacks.length-1) {
-            // Then move to the rightmost stack
-            plan.push("Moving as far right as possible");
-            for (var i = pickstack; i < state.stacks.length-1; i++) {
-                plan.push("r");
-            }
-
-            // Then move back
-            plan.push("Moving back");
-            for (var i = state.stacks.length-1; i > pickstack; i--) {
-                plan.push("l");
-            }
-        }
-
-        // Finally put it down again
-        plan.push("Dropping the " + state.objects[obj].form,
-                  "d");
+        var graph = new PGraph();
+        var startNode = new PNode(state.stacks, state.holding, state.arm);
+        
 
         return plan;
+    }
+
+}
+
+function goal(interpretation : Interpreter.DNFFormula, state: WorldState, n: PNode) : boolean {
+    var goal : boolean = false;
+
+    for (var i = 0; i < interpretation.length; i++) {
+        var condSatisfied : boolean = false;
+
+        for (var j = 0; j < interpretation[i].length; j++) {
+            var condition = interpretation[i][j];
+            var firstArg : string = condition.args[0];
+
+            if (condition.relation === "holding") {
+                if (state.holding === firstArg)
+                    condSatisfied = true;
+            } else {
+                var secArg : string = condition.args[1];
+                var firstCord : Coordinate = findIndex(firstArg, state);
+                
+                if (secArg !== "floor") {
+                    var secCord : Coordinate = findIndex(secArg, state);
+                    
+                    if (condition.relation === "leftof") {
+                        if (firstCord.x < secCord.x) condSatisfied = true;    
+                    } else if (condition.relation === "rightof") {
+                        if (firstCord.x > secCord.x) condSatisfied = true;
+                    } else if (condition.relation === "above") {
+                        if (firstCord.x === secCord.x && firstCord.y > secCord.y)
+                            condSatisfied = true;
+                    } else if (condition.relation === "under") {
+                        if (firstCord.x === secCord.x && firstCord.y < secCord.y)
+                            condSatisfied = true;
+                    } else if (condition.relation === "beside") {
+                        if (Math.abs(firstCord.x - secCord.x) == 1)
+                           condSatisfied = true; 
+                    } else if (condition.relation === "ontop") {
+                        if (firstCord.x === secCord.x && (firstCord.y-secCord.y) == 1)
+                           condSatisfied = true; 
+                    }
+                }
+            }       
+        }
+        if (condSatisfied) goal = true;
+    }
+    return goal;
+}
+
+function findIndex(obj : string, state : WorldState) {
+    var coordinate : Coordinate = undefined;
+
+    for (var i = 0; i < state.stacks.length; i++){
+        for (var j = 0; j < state.stacks[i].length; j++) {
+            if (state.stacks[i][j] === obj) {
+                coordinate = {x:i, y:j};
+                break;    
+            }
+        }
+    }
+    
+    return coordinate;
+}
+
+class PGraph implements Graph<PNode> {
+
+    outgoingEdges(node: PNode) : Edge<PNode>[] {
+        return undefined; 
+    }
+
+   compareNodes : collections.ICompareFunction<PNode> = function (a : PNode, b : PNode) {
+    return undefined;
+   } 
+
+}
+
+class PNode {
+    stack: Stack[];
+    holding: string;
+    arm: number;
+
+    constructor (public _stack : Stack[], public _holding : string, public _arm : number) {
+        this.stack = _stack;
+        this.holding = _holding;
+        this.arm = _arm;
     }
 
 }
