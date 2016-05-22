@@ -82,7 +82,7 @@ module Planner {
         var startNode = new PNode(state.stacks, state.holding, state.arm, null);
         var goalFun = (node : PNode) => goal(interpretation, node);
         var heuristicsFun = (node : PNode) => heuristics(interpretation, node);
-        var timeout = 10;
+        var timeout = 5;
         //var goalNode = new PNode(startNode.stacks, startNode.holding, startNode.arm, null);
         //goalNode.stacks = goalNode.stacks.slice();
         //for(var i = 0; i < goalNode.stacks.length; i++)
@@ -94,6 +94,8 @@ module Planner {
         //console.log("GOAL " + JSON.stringify(goalNode));
         //console.log("PLS " + goalFun(goalNode));
         var aStar = aStarSearch(graph, startNode, goalFun, heuristicsFun, timeout);
+        if(!aStar)
+            throw("that's impossible");
         //console.log("AIDS: " + JSON.stringify(aStar, null, 2));
         var plan : string[] = [];
         for(var node of aStar.path)

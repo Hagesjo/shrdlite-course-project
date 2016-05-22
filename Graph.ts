@@ -71,7 +71,7 @@ function aStarSearch<Node> (
     var startTime = Date.now();
     while(!queue.isEmpty()) {
         if(Date.now() - startTime >= timeout*1000)
-            return undefined; // we timed out
+            throw("aStarSearch timed out");
         node = queue.dequeue();
         if(goal(node))
             break;
