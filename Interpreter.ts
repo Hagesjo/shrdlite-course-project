@@ -206,7 +206,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         return ors;
     }
 
-    function checkPhysics(srcId : string, srcObj : ObjectDefinition,
+    export function checkPhysics(srcId : string, srcObj : ObjectDefinition,
                           relation : string, dstId : string,
                           dstObj : ObjectDefinition) : boolean {
         if(srcId === dstId)

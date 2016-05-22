@@ -78,7 +78,7 @@ module Planner {
      * be added using the `push` method.
      */
     function planInterpretation(interpretation : Interpreter.DNFFormula, state : WorldState) : string[] {
-        var graph = new PGraph();
+        var graph = new PGraph(state.objects);
         var startNode = new PNode(state.stacks, state.holding, state.arm, null);
         var goalFun = (node : PNode) => goal(interpretation, node);
         var heuristicsFun = (node : PNode) => heuristics(interpretation, node);
@@ -247,6 +247,8 @@ function findIndex(obj : string, stacks : Stack[]) {
 
 class PGraph implements Graph<PNode> {
 
+    constructor(public objects : {[s:string]: ObjectDefinition;}) {}
+
     outgoingEdges(node: PNode) : Edge<PNode>[] {
         // we need to be careful and not create side effects
         var edges : Edge<PNode>[] = [];
@@ -266,13 +268,23 @@ class PGraph implements Graph<PNode> {
             pick.holding = pick.stacks[pick.arm].pop();
             edges.push({from: node, to: pick, cost: 1});
         }
-        if(node.holding !== null) {
-            //TODO checkPhysics
-            var drop : PNode = new PNode(node.stacks.slice(), node.holding, node.arm, "d");
-            drop.stacks[drop.arm] = drop.stacks[drop.arm].slice();
-            drop.stacks[drop.arm].push(drop.holding);
-            drop.holding = null;
-            edges.push({from: node, to: drop, cost: 1});
+        if(node.holding !== null && node.stacks[node.arm].length < node.stacks.length) { // the universe is N*N
+            var physicsOk : boolean = node.stacks[node.arm].length === 0;
+            if(!physicsOk) {
+                var srcId    : string           = node.holding;
+                var srcObj   : ObjectDefinition = this.objects[srcId];
+                var dstId    : string           = node.stacks[node.arm][node.stacks[node.arm].length-1];
+                var dstObj   : ObjectDefinition = this.objects[dstId];
+                var relation : string           = dstObj.form === "box" ? "inside" : "ontop";
+                physicsOk = Interpreter.checkPhysics(srcId, srcObj, relation, dstId, dstObj)
+            }
+            if(physicsOk) {
+                var drop : PNode = new PNode(node.stacks.slice(), node.holding, node.arm, "d");
+                drop.stacks[drop.arm] = drop.stacks[drop.arm].slice();
+                drop.stacks[drop.arm].push(drop.holding);
+                drop.holding = null;
+                edges.push({from: node, to: drop, cost: 1});
+            }
         }
         return edges;
     }
