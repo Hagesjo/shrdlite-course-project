@@ -225,8 +225,10 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                     return false;
                 break;
             case "ontop":
-                if(dstObj.form === "box") 																														//Objects are “inside” boxes, but “ontop” of other objects.
-                    return false;																													
+                if(dstObj.form === "box") 																													//Objects are “inside” boxes, but “ontop” of other objects.
+                    return false;
+                if(dstObj.form === "ball") 																													//Can't have anything ontop of a ball
+                    return false;
                 if(srcObj.size === "large" && dstObj.size === "small")																						//Small objects cannot support large objects.
                     return false;
                 if(srcObj.form === "ball" && dstObj.form !== "floor")	                        															//Balls must be in boxes or on the floor, otherwise they roll away.
