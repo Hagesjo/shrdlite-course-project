@@ -125,7 +125,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             if(state.holding === null)
                 throw "we aren't holding anything";
             // this will break, eventually
-            subjects = [[{objId: state.holding, stack: -1, posInStack: -1}]];
+            subjects = [[{objId: state.holding}]];
         } else {
             // figure out what objects we want to manipulate
             subjects = findEntities(cmd.entity, state);
@@ -261,11 +261,6 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         stack? : number, posInStack? : number
     }
 
-    interface ObjectPositionTest {
-        // x should always be pos
-        test : (x : ObjectRef, y : ObjectRef) => boolean,
-        pos : ObjectRef
-    }
 
     function findEntities(entity : Parser.Entity, state : WorldState) : ObjectRef[][] {
         if(entity.object.location !== undefined) {
@@ -275,7 +270,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             var validObjs : ObjectRef[] = objs.filter(
                 obj => orTests.some(
                     ands => ands.every(
-                        test => test.test(test.pos, obj))));
+                        test => test.test(obj))));
             return checkQuantifier(entity.quantifier, validObjs);
         } else {
             // entity.object describes what entities we want to find
@@ -369,112 +364,102 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             dstObj = location.entity.object.object;
         checkRelationInUtterence(srcQuantifier, srcObj, location.relation, dstQuantifier, dstObj);
 
-        var refss : ObjectRef[][] = findEntities(location.entity, state);
-        var refTestss : ObjectPositionTest[][] = [];
+        var testFun : (x : ObjectRef, refPos : ObjectRef) => boolean;
         switch(location.relation){
             case "leftof":
-                for(var refs of refss) {
-                    var refTests : ObjectPositionTest[] = [];
-                    for(var ref of refs) {
-                        if(ref.stack === undefined)
-                            refTests.push({pos: ref, test: (x, y) => leftof(x.objId, y)});
-                        else
-                            refTests.push({pos: ref, test: (x, y) => y.stack < x.stack && x.stack !== 0});
-                    }
-                    refTestss.push(refTests);
-                }
+                testFun = leftof;
                 break;
             case "rightof":
-                for(var refs of refss) {
-                    var refTests : ObjectPositionTest[] = [];
-                    for(var ref of refs) {
-                        if(ref.stack === undefined)
-                            refTests.push({pos: ref, test: (x, y) => rightof(x.objId, y)});
-                        else
-                            refTests.push({pos: ref, test: (x, y) => y.stack > x.stack && x.stack !== state.stacks.length-1});
-                    }
-                    refTestss.push(refTests);
-                }
+                testFun = rightof;
                 break;
             case "inside":
             case "ontop":
-                for(var refs of refss) {
-                    var refTests : ObjectPositionTest[] = [];
-                    for(var ref of refs) {
-                        if(ref.stack === undefined)
-                            refTests.push({pos: ref, test: (x, y) => ontop(x.objId, y)});
-                        else
-                            refTests.push({pos: ref, test: (x, y) => (y.stack == x.stack && (y.posInStack-1) == x.posInStack)});
-                    }
-                    refTestss.push(refTests);
-                }
+                testFun = ontop;
                 break;
             case "under":
-                for(var refs of refss) {
-                    var refTests : ObjectPositionTest[] = [];
-                    for(var ref of refs) {
-                        if(ref.stack === undefined)
-                            refTests.push({pos: ref, test: (x, y) => under(x.objId, y)});
-                        else
-                            refTests.push({pos: ref, test: (x, y) => (y.stack == x.stack && y.posInStack < x.posInStack)});
-                    }
-                    refTestss.push(refTests);
-                }
+                testFun = under;
                 break;
             case "beside":
-                for(var refs of refss) {
-                    var refTests : ObjectPositionTest[] = [];
-                    for(var ref of refs) {
-                        if(ref.stack === undefined)
-                            refTests.push({pos: ref, test: (x, y) => beside(x.objId, y)});
-                        else
-                            refTests.push({pos: ref, test: (x, y) => (Math.abs(y.stack - x.stack) == 1)});
-                    }
-                    refTestss.push(refTests);
-                }
+                testFun = beside;
                 break;
             case "above":
-                for(var refs of refss) {
-                    var refTests : ObjectPositionTest[] = [];
-                    for(var ref of refs) {
-                        if(ref.stack === undefined)
-                            refTests.push({pos: ref, test: (x, y) => above(x.objId, y)});
-                        else
-                            refTests.push({pos: ref, test: (x, y) => (y.stack == x.stack && y.posInStack > x.posInStack)});
-                    }
-                    refTestss.push(refTests);
-                }
+                testFun = above;
                 break;
+        }
+
+        var refss : ObjectRef[][] = findEntities(location.entity, state);
+        var refTestss : ObjectPositionTest[][] = [];
+        for(var refs of refss) {
+            var refTests : ObjectPositionTest[] = [];
+            for(var ref of refs)
+                refTests.push(new ObjectPositionTest(ref, testFun));
+            refTestss.push(refTests);
         }
         return refTestss;
     }
 
-    function leftof(objId : string, pos : ObjectRef) : boolean {
-        throw("left of \"" + objId + "\" doesn't make sense");
-    }
+    class ObjectPositionTest {
+        constructor(
+            private refPos : ObjectRef,
+            public testFun : (x : ObjectRef, refPos : ObjectRef) => boolean
+        ) {}
 
-    function rightof(objId : string, pos : ObjectRef) : boolean {
-        throw("right of \"" + objId + "\" doesn't make sense");
-    }
-
-    function ontop(objId : string, pos : ObjectRef) : boolean {
-        switch(objId) {
-            case "floor":
-                return pos.posInStack === 0;
+        test(x : ObjectRef) : boolean {
+            return this.testFun(x, this.refPos);
         }
-        throw("on top \"" + objId + "\" doesn't make sense");
     }
 
-    function under(objId : string, pos : ObjectRef) : boolean {
-        throw("under \"" + objId + "\" doesn't make sense");
+    // these functions are used with ObjectPositionTest
+    function leftof(x : ObjectRef, refPos : ObjectRef) : boolean {
+        if(refPos.stack === undefined) {
+            throw("left of \"" + refPos.objId + "\" doesn't make sense");
+        } else {
+            return x.stack < refPos.stack;
+        }
     }
 
-    function beside(objId : string, pos : ObjectRef) : boolean {
-        throw("beside \"" + objId + "\" doesn't make sense");
+    function rightof(x : ObjectRef, refPos : ObjectRef) : boolean {
+        if(refPos.stack === undefined) {
+            throw("right of \"" + refPos.objId + "\" doesn't make sense");
+        } else {
+            return x.stack > refPos.stack;
+        }
     }
 
-    function above(objId : string, pos : ObjectRef) : boolean {
-        throw("above \"" + objId + "\" doesn't make sense");
+    function ontop(x : ObjectRef, refPos : ObjectRef) : boolean {
+        if(refPos.stack === undefined) {
+            switch(refPos.objId) {
+                case "floor":
+                    return x.posInStack === 0;
+            }
+            throw("on top \"" + refPos.objId + "\" doesn't make sense");
+        } else {
+            return x.stack === refPos.stack && x.posInStack === refPos.posInStack + 1;
+        }
+    }
+
+    function under(x : ObjectRef, refPos : ObjectRef) : boolean {
+        if(refPos.stack === undefined) {
+            throw("under \"" + refPos.objId + "\" doesn't make sense");
+        } else {
+            return x.stack === refPos.stack && x.posInStack < refPos.posInStack;
+        }
+    }
+
+    function beside(x : ObjectRef, refPos : ObjectRef) : boolean {
+        if(refPos.stack === undefined) {
+            throw("beside \"" + refPos.objId + "\" doesn't make sense");
+        } else {
+            return Math.abs(x.stack - refPos.stack) === 1;
+        }
+    }
+
+    function above(x : ObjectRef, refPos : ObjectRef) : boolean {
+        if(refPos.stack === undefined) {
+            throw("above \"" + refPos.objId + "\" doesn't make sense");
+        } else {
+            return x.stack === refPos.stack && x.posInStack > refPos.posInStack;
+        }
     }
 
 }
