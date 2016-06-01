@@ -101,7 +101,6 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
      * @returns A list of list of Literal, representing a formula in disjunctive normal form (disjunction of conjunctions). See the dummy interpetation returned in the code for an example, which means ontop(a,floor) AND holding(b).
      */
     function interpretCommand(cmd : Parser.Command, state : WorldState) : DNFFormula {
-        //console.log("===CMD=== " + JSON.stringify(cmd, null, 2) + "\n");
         if(cmd.command === "move" || cmd.command === "take") {
             // special checks that only is meaningful on the subject of the command
             var srcQuantifier : string = cmd.entity.quantifier;
@@ -156,7 +155,15 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         return ors;
     }
 
-    // this can handled "put a ball beside all boxes"
+    /**
+     * combineOneToAll function
+     * Combines the quantifiers "any/the" with "all"
+     * @param relation The relation that the entities should share.
+     * @param left The first arguments in the relation.
+     * @param rightss A DNFFormula of the second argument in the relation.
+     * @param state The WorldState
+     * @returns A DNFFormula
+     */
     function combineOneToAll(relation : string, left : ObjectRef, rightss : ObjectRef[][], state : WorldState) : DNFFormula {
         var ors : DNFFormula = [];
         var src_objId = left.objId;
@@ -175,7 +182,15 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         return ors;
     }
 
-    // this can handle "put all balls inside a box"
+    /** 
+     * combineAllToOne function
+     * Combines the quantifier "all" with "any/the". 
+     * @param relation The relations that the entities should share.
+     * @param lefts A conjunction of the first arguments in the relation.
+     * @param rights A disjunction of the second argument in the relation. 
+     * @param state The WorldState
+     * @returns A DNFFormula
+     */
     function combineAllToOne(relation : string, lefts : ObjectRef[], rights : ObjectRef[], state : WorldState) : DNFFormula {
         var ors : DNFFormula = [];
         if(lefts.length === 1) {
@@ -215,6 +230,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         return ors;
     }
 
+
     export function checkPhysics(srcId : string, srcObj : ObjectDefinition,
                           relation : string, dstId : string,
                           dstObj : ObjectDefinition) : boolean {
@@ -226,36 +242,49 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             return false;
         switch(relation) {
             case "inside":
-                if(dstObj.form !== "box")                                                                                                                       //Objects are “inside” boxes, but “ontop” of other objects.
+                //Objects are “inside” boxes, but “ontop” of other objects.
+                if(dstObj.form !== "box") 
                     return false;
-                if(srcObj.size === "large" && dstObj.size === "small")																						//Small objects cannot support large objects.
+                //Small objects cannot support large objects.
+                if(srcObj.size === "large" && dstObj.size === "small") 
                     return false;
-                if((srcObj.form === "pyramid" || srcObj.form === "plank" || srcObj.form === "box") && dstObj.form === "box" && srcObj.size === dstObj.size) //Boxes cannot contain pyramids, planks or boxes of the same size
+                //Boxes cannot contain pyramids, planks or boxes of the same size
+                if((srcObj.form === "pyramid" || srcObj.form === "plank" || srcObj.form === "box") && dstObj.form === "box" && srcObj.size === dstObj.size) 
                     return false;
                 break;
             case "ontop":
-                if(dstObj.form === "box") 																													//Objects are “inside” boxes, but “ontop” of other objects.
+                //Objects are “inside” boxes, but “ontop” of other objects.
+                if(dstObj.form === "box") 																													
                     return false;
-                if(dstObj.form === "ball") 																													//Can't have anything ontop of a ball
+                //Can't have anything ontop of a ball
+                if(dstObj.form === "ball") 																													
                     return false;
-                if(srcObj.size === "large" && dstObj.size === "small")																						//Small objects cannot support large objects.
+                //Small objects cannot support large objects.
+                if(srcObj.size === "large" && dstObj.size === "small")																						
                     return false;
-                if(srcObj.form === "ball" && dstObj.form !== "floor")	                        															//Balls must be in boxes or on the floor, otherwise they roll away.
+                //Balls must be in boxes or on the floor, otherwise they roll away.
+                if(srcObj.form === "ball" && dstObj.form !== "floor")	                        															
                     return false;
-                if(srcObj.size === "small" && srcObj.form === "box" && dstObj.size === "small" && (dstObj.form === "pyramid" || dstObj.form === "plank"))   //Small boxes cannot be supported by small bricks or pyramids.
+                //Small boxes cannot be supported by small bricks or pyramids.
+                if(srcObj.size === "small" && srcObj.form === "box" && dstObj.size === "small" && (dstObj.form === "pyramid" || dstObj.form === "plank"))   
                     return false;
-                if(srcObj.size === "large" && srcObj.form === "box" && dstObj.size === "large" && dstObj.form === "pyramid")   								//Large boxes cannot be supported by large pyramids.
+                //Large boxes cannot be supported by large pyramids.
+                if(srcObj.size === "large" && srcObj.form === "box" && dstObj.size === "large" && dstObj.form === "pyramid")   								
                     return false;
                 break;
             case "under":
+                //Can't have anything under the floor 
                 if(dstObj.form === "floor")
                     return false;
+                //Can't have a small object under a large object
                 if(dstObj.size === "large" && srcObj.size === "small")
                     return false;
+                //Balls must have floor or box under itself
                 if(dstObj.form === "ball" && srcObj.form !== "floor" && srcObj.form !== "box")
                     return false;
                 break;
             case "beside":
+                // Object cant be beside floor
                 if(dstObj.form === "floor")
                     return false;
                 break;
@@ -269,7 +298,13 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         stack? : number, posInStack? : number
     }
 
-
+    /**
+     * findEntities function
+     * Finds all entities that matches the description of the given entity.
+     * @param entity The description of the entity to find.
+     * @param state Tbe WorldState.
+     * @returns returns all entites that matches the description.
+     */
     function findEntities(entity : Parser.Entity, state : WorldState) : ObjectRef[][] {
         if(entity.object.location !== undefined) {
             // there are more restrictions
@@ -287,6 +322,13 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         }
     }
 
+    /**
+     * checkQuantifier function
+     * Checks if the quantifier can be used with the entities.
+     * @param quantifier The quantifier
+     * @param entities The entities to be DNF'ed.
+     * @returns DNF according to quantifier. 
+     */
     function checkQuantifier(quantifier : string, entities : ObjectRef[]) : ObjectRef[][] {
         switch(quantifier) {
             case "the":
@@ -302,6 +344,13 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         throw "unknown quantifier \"" + quantifier + "\"";
     }
 
+    /**
+     * findObjects function
+     * Finds objects that matches a description.
+     * @param objectDesc The description of the object that we want to find.
+     * @param state The WorldState
+     * @returns A list of objects found.
+     */
     function findObjects(objectDesc : Parser.Object, state : WorldState) : ObjectRef[] {
         var entities : ObjectRef[] = [];
         if(objectDesc.form === "floor") {
@@ -329,6 +378,15 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         return entities;
     }
 
+    /**
+     * checkRelationInUtterence function
+     * Checks if the utterence is valid, throws if it is not.
+     * @param srcQuantifier The quantifier of the source.
+     * @param srcObj The source object.
+     * @param relation The relation.
+     * @param dstQuantifier The destination quantifier.
+     * @param dstObj The destination object.
+     */
     function checkRelationInUtterence(srcQuantifier : string, srcObj : Parser.Object,
                                       relation : string,
                                       dstQuantifier : string, dstObj : Parser.Object) : void {
@@ -367,6 +425,15 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         }
     }
 
+    /**
+     * findLocations function
+     * Find all entities in a location and create a ObjectPositionTestDNF for it.
+     * @param srcQuantifier Used with checkRelationInUtterence
+     * @param srcObj Used with checkRelationInUtterence
+     * @param location The location decription
+     * @param state The WorldState
+     * @returns A ObjectPositionTestDNF
+     */
     function findLocations(srcQuantifier : string, srcObj : Parser.Object,
                            location : Parser.Location, state : WorldState) : ObjectPositionTest[][] {
         var dstQuantifier : string = location.entity.quantifier;
@@ -378,6 +445,8 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         checkRelationInUtterence(srcQuantifier, srcObj, location.relation, dstQuantifier, dstObj);
 
         var testFun : (x : ObjectRef, refPos : ObjectRef) => boolean;
+
+        // Each relation should use the proper function.
         switch(location.relation){
             case "leftof":
                 testFun = leftof;
@@ -411,6 +480,10 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         return refTestss;
     }
 
+    /**
+     * ObjectPositionTest class
+     * A test that is relative a given object. 
+     */
     class ObjectPositionTest {
         constructor(
             private refPos : ObjectRef,
@@ -422,7 +495,9 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         }
     }
 
-    // these functions are used with ObjectPositionTest
+    // The following functions are used with ObjectPositionTest
+    
+    // Checks if an object is leftof another object.
     function leftof(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
             throw("left of \"" + refPos.objId + "\" doesn't make sense");
@@ -431,6 +506,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         }
     }
 
+    // Checks if an object is rightof another object.
     function rightof(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
             throw("right of \"" + refPos.objId + "\" doesn't make sense");
@@ -439,6 +515,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         }
     }
 
+    // Checks if an object is ontop of another object.
     function ontop(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
             switch(refPos.objId) {
@@ -451,6 +528,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         }
     }
 
+    // Checks if an object is under another object.
     function under(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
             throw("under \"" + refPos.objId + "\" doesn't make sense");
@@ -459,6 +537,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         }
     }
 
+    // Checks if an object is beside another object.
     function beside(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
             throw("beside \"" + refPos.objId + "\" doesn't make sense");
@@ -467,6 +546,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         }
     }
 
+    // Checks if an object is above another object.
     function above(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
             throw("above \"" + refPos.objId + "\" doesn't make sense");
