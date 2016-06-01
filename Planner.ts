@@ -198,50 +198,58 @@ function heuristics(ors : Interpreter.DNFFormula, node : PNode) : number {
                         andMin++; // pick
                     }
                     break;
+                case "under":
+                    andMin = heuristicsHelper(andMin, and, node, and.args[1], and.args[0]);
+                    break;
                 default:
-                    if(node.holding === and.args[0]) {
-                        if(and.args[1] === "floor") {
-                            //TODO find nearest empty stack
-                            andMin++; // drop
-                        } else {
-                            var dstCoord : Coordinate = findIndex(and.args[1], node.stacks);
-                            andMin += Math.abs(dstCoord.x - node.arm); // move the arm above dst
-                            if(and.relation === "beside")
-                                andMin--; // best case we can put it on the near side
-                            andMin++; // drop
-                        }
-                    } else if(node.holding === and.args[1]) {
-                        var srcCoord : Coordinate = findIndex(and.args[0], node.stacks);
-                        var dstCoord : Coordinate = {x: node.arm, y: node.stacks[node.arm].length};
-                        andMin++; // drop dst
-                        andMin += Math.abs(node.arm - srcCoord.x); // move the arm above src
-                        andMin++; // pickup
-                        andMin += Math.abs(dstCoord.x - srcCoord.x); // move the arm above dst
-                        andMin++; // drop
-                    } else {
-                        if(node.holding !== null)
-                            andMin++; // drop whatever it is we're holding
-                        var srcCoord : Coordinate = findIndex(and.args[0], node.stacks);
-                        andMin += Math.abs(node.arm - srcCoord.x); // move the arm above src
-                        andMin++; // pickup
-                        if(and.args[1] === "floor") {
-                            //TODO find nearest empty stack
-                            andMin++; // move to adjacent stack
-                            andMin++; // drop
-                        } else {
-                            var dstCoord : Coordinate = findIndex(and.args[1], node.stacks);
-                            andMin += Math.abs(dstCoord.x - srcCoord.x); // move the arm above dst
-                            if(and.relation === "beside")
-                                andMin--; // best case we can put it on the near side
-                            andMin++; // drop
-                        }
-                    }
+                    andMin = heuristicsHelper(andMin, and, node, and.args[0], and.args[1]);
                     break;
             }
         }
         min = Math.min(min, andMin);
     }
     return min;
+}
+
+function heuristicsHelper(andMin : number, and : Interpreter.Literal, node : PNode, arg0 : string, arg1 : string) {
+    if(node.holding === arg0) {
+        if(arg1 === "floor") {
+            //TODO find nearest empty stack
+            andMin++; // drop
+        } else {
+            var dstCoord : Coordinate = findIndex(arg1, node.stacks);
+            andMin += Math.abs(dstCoord.x - node.arm); // move the arm above dst
+            if(and.relation === "beside")
+                andMin--; // best case we can put it on the near side
+            andMin++; // drop
+        }
+    } else if(node.holding === arg1) {
+        var srcCoord : Coordinate = findIndex(arg0, node.stacks);
+        var dstCoord : Coordinate = {x: node.arm, y: node.stacks[node.arm].length};
+        andMin++; // drop dst
+        andMin += Math.abs(node.arm - srcCoord.x); // move the arm above src
+        andMin++; // pickup
+        andMin += Math.abs(dstCoord.x - srcCoord.x); // move the arm above dst
+        andMin++; // drop
+    } else {
+        if(node.holding !== null)
+            andMin++; // drop whatever it is we're holding
+        var srcCoord : Coordinate = findIndex(arg0, node.stacks);
+        andMin += Math.abs(node.arm - srcCoord.x); // move the arm above src
+        andMin++; // pickup
+        if(arg1 === "floor") {
+            //TODO find nearest empty stack
+            andMin++; // move to adjacent stack
+            andMin++; // drop
+        } else {
+            var dstCoord : Coordinate = findIndex(arg1, node.stacks);
+            andMin += Math.abs(dstCoord.x - srcCoord.x); // move the arm above dst
+            if(and.relation === "beside")
+                andMin--; // best case we can put it on the near side
+            andMin++; // drop
+        }
+    }
+    return andMin;
 }
 
 /** 
