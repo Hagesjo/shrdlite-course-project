@@ -390,20 +390,31 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             entities.push({objId: "floor"});
             return entities;
         }
+        if(state.holding !== null && testObject(state.holding, objectDesc, state))
+            entities.push({objId: state.holding});
         for(var stackIndex = 0; stackIndex < state.stacks.length; stackIndex++) {
             var stack : Stack = state.stacks[stackIndex];
             for(var objIndex = 0; objIndex < stack.length; objIndex++) {
                 var objId : string = stack[objIndex];
-                var object : ObjectDefinition = state.objects[objId];
-                var form  : boolean = objectDesc.form  === null || objectDesc.form  === "anyform" || objectDesc.form  === object.form;
-                var size  : boolean = objectDesc.size  === null || objectDesc.size  === object.size;
-                var color : boolean = objectDesc.color === null || objectDesc.color === object.color;
-                if(form && size && color){
-                    entities.push({objId: objId, stack: stackIndex, posInStack: objIndex});
-                }
+                if(testObject(objId, objectDesc, state))
+                   entities.push({objId: objId, stack: stackIndex, posInStack: objIndex});
             }
         }
         return entities;
+    }
+    
+    /**
+     * Tests if a real object matches a description
+     * @param objId The ID of the object to be tested
+     * @param objectDesc The description
+     * @param state The WorldState
+     */
+    function testObject(objId : string, objectDesc : Parser.Object, state : WorldState) : boolean {
+        var object : ObjectDefinition = state.objects[objId];
+        var form  : boolean = objectDesc.form  === null || objectDesc.form  === "anyform" || objectDesc.form  === object.form;
+        var size  : boolean = objectDesc.size  === null || objectDesc.size  === object.size;
+        var color : boolean = objectDesc.color === null || objectDesc.color === object.color;
+        return form && size && color;
     }
 
     /**
@@ -528,7 +539,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     // Checks if an object is leftof another object.
     function leftof(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
-            throw("left of \"" + refPos.objId + "\" doesn't make sense");
+            return false;
         } else {
             return x.stack < refPos.stack;
         }
@@ -537,7 +548,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     // Checks if an object is rightof another object.
     function rightof(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
-            throw("right of \"" + refPos.objId + "\" doesn't make sense");
+            return false;
         } else {
             return x.stack > refPos.stack;
         }
@@ -550,7 +561,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                 case "floor":
                     return x.posInStack === 0;
             }
-            throw("on top \"" + refPos.objId + "\" doesn't make sense");
+            return false;
         } else {
             return x.stack === refPos.stack && x.posInStack === refPos.posInStack + 1;
         }
@@ -559,7 +570,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     // Checks if an object is under another object.
     function under(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
-            throw("under \"" + refPos.objId + "\" doesn't make sense");
+            return false;
         } else {
             return x.stack === refPos.stack && x.posInStack < refPos.posInStack;
         }
@@ -568,7 +579,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     // Checks if an object is beside another object.
     function beside(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
-            throw("beside \"" + refPos.objId + "\" doesn't make sense");
+            return false;
         } else {
             return Math.abs(x.stack - refPos.stack) === 1;
         }
@@ -577,7 +588,7 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     // Checks if an object is above another object.
     function above(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
-            throw("above \"" + refPos.objId + "\" doesn't make sense");
+            return false;
         } else {
             return x.stack === refPos.stack && x.posInStack > refPos.posInStack;
         }
