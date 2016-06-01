@@ -332,6 +332,11 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     function checkRelationInUtterence(srcQuantifier : string, srcObj : Parser.Object,
                                       relation : string,
                                       dstQuantifier : string, dstObj : Parser.Object) : void {
+        // floor is special
+        if(dstObj.form === "floor") {
+            if(relation !== "above" && relation !== "ontop")
+                throw("'" + relation + " floor' does not make sense");
+        }
         // check for relation/form
         switch(relation) {
             case "inside":
