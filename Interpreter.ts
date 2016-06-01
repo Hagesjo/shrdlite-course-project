@@ -106,8 +106,6 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             // special checks that only is meaningful on the subject of the command
             var srcQuantifier : string = cmd.entity.quantifier;
             var srcObj : Parser.Object = cmd.entity.object.location === undefined ? cmd.entity.object : cmd.entity.object.object;
-            if(cmd.entity.quantifier === "all")
-                throw "we can't pick up more than one object";
             if(srcObj.form === "floor")
                 throw "'" + cmd.command + " the floor' does not make sense"
         }
@@ -134,6 +132,8 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         var ors : DNFFormula = [];
         if(cmd.command === "take") {
             // the object should end up in our arm
+            if(cmd.entity.quantifier === "all")
+                throw "we can't pick up more than one object";
             for(var subs of subjects)
                 ors.push([{polarity: true, relation: "holding", args: [subs[0].objId]}]);
         } else {
