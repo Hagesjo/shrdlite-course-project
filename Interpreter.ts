@@ -588,6 +588,10 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
     // Checks if an object is above another object.
     function above(x : ObjectRef, refPos : ObjectRef) : boolean {
         if(refPos.stack === undefined) {
+            switch(refPos.objId) {
+                case "floor":
+                    return true;
+            }
             return false;
         } else {
             return x.stack === refPos.stack && x.posInStack > refPos.posInStack;
