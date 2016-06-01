@@ -102,13 +102,14 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
      */
     function interpretCommand(cmd : Parser.Command, state : WorldState) : DNFFormula {
         //console.log("===CMD=== " + JSON.stringify(cmd, null, 2) + "\n");
-        var srcQuantifier : string = cmd.entity.quantifier;
-        var srcObj : Parser.Object = cmd.entity.object.location === undefined ? cmd.entity.object : cmd.entity.object.object;
-        if(cmd.command === "take") {
-           if(cmd.entity.quantifier === "all")
-               throw "we can't pick up more than one object";
-           if(srcObj.form === "floor")
-               throw "'Take the floor' does not make sense"
+        if(cmd.command === "move" || cmd.command === "take") {
+            // special checks that only is meaningful on the subject of the command
+            var srcQuantifier : string = cmd.entity.quantifier;
+            var srcObj : Parser.Object = cmd.entity.object.location === undefined ? cmd.entity.object : cmd.entity.object.object;
+            if(cmd.entity.quantifier === "all")
+                throw "we can't pick up more than one object";
+            if(srcObj.form === "floor")
+                throw "'" + cmd.command + " the floor' does not make sense"
         }
         if(cmd.command === "move") {
             var relation : string      = cmd.location.relation;
@@ -116,11 +117,11 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             var dstObj : Parser.Object  = cmd.location.entity.object.location === undefined ? cmd.location.entity.object : cmd.location.entity.object.object;
             checkRelationInUtterence(srcQuantifier, srcObj, relation, dstQuantifier, dstObj);
         }
+
+        // Top level utterence seems ok, lets go recursive
         var subjects : ObjectRef[][];
         if(cmd.command === "put") {
             // we want manipulate the object in the arm
-            if(srcObj.form === "floor")
-                throw "Håller du på att lägga nytt golv?"
             if(state.holding === null)
                 throw "we aren't holding anything";
             // this will break, eventually
