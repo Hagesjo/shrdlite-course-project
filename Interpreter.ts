@@ -139,9 +139,17 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         } else {
             //TODO implement CNF <-> DNF
             var destss : ObjectRef[][] = findEntities(cmd.location.entity, state);
-            for(var subs of subjects)
-                ors = ors.concat(combineOneToAll(cmd.location.relation, subs[0], destss, state));
-                //ors = ors.concat(combineAllToOne(cmd.location.relation, subs, destss.map(x => x[0]), state));
+            for(var subs of subjects) {
+                if(!subs.length)
+                    continue;
+                // temporary fix for CNF <-> DNF is to use two different combinators
+                // this means that it will not properly handle "put all balls beside all boxes"
+                // that utterence will be interpreted as "put all balls beside any box"
+                if(subs.length > 1)
+                    ors = ors.concat(combineAllToOne(cmd.location.relation, subs, destss.map(x => x[0]), state));
+                else
+                    ors = ors.concat(combineOneToAll(cmd.location.relation, subs[0], destss, state));
+            }
         }
         if(!ors.length)
             throw "unable to interpret";
