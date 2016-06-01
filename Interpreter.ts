@@ -116,16 +116,16 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
         }
 
         // Top level utterence seems ok, lets go recursive
-        var subjects : ObjectRef[][];
+        var subss : ObjectRef[][];
         if(cmd.command === "put") {
             // we want manipulate the object in the arm
             if(state.holding === null)
                 throw "we aren't holding anything";
             // this will break, eventually
-            subjects = [[{objId: state.holding}]];
+            subss = [[{objId: state.holding}]];
         } else {
             // figure out what objects we want to manipulate
-            subjects = findEntities(cmd.entity, state);
+            subss = findEntities(cmd.entity, state);
         }
 
         var ors : DNFFormula = [];
@@ -133,21 +133,31 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
             // the object should end up in our arm
             if(cmd.entity.quantifier === "all")
                 throw "we can't pick up more than one object";
-            for(var subs of subjects)
+            for(var subs of subss)
                 ors.push([{polarity: true, relation: "holding", args: [subs[0].objId]}]);
         } else {
-            //TODO implement CNF <-> DNF
+            // this is combination hell
+            // we probably should just rewrite all of this,
+            // but it have already given me enough headache
             var destss : ObjectRef[][] = findEntities(cmd.location.entity, state);
-            for(var subs of subjects) {
-                if(!subs.length)
-                    continue;
-                // temporary fix for CNF <-> DNF is to use two different combinators
-                // this means that it will not properly handle "put all balls beside all boxes"
-                // that utterence will be interpreted as "put all balls beside any box"
-                if(subs.length > 1)
-                    ors = ors.concat(combineAllToOne(cmd.location.relation, subs, destss.map(x => x[0]), state));
-                else
-                    ors = ors.concat(combineOneToAll(cmd.location.relation, subs[0], destss, state));
+            if(subss.length > 1) {
+                // subss is an array of single element arrays: [[a],[b],[c]]
+                for(var subs of subss) {
+                    if(!subs.length)
+                        continue;
+                    var combine = combineOneToAll(cmd.location.relation, subs[0], destss, state);
+                    if(combine.length)
+                        ors = ors.concat(combine);
+                }
+            } else if(subss[0].length) {
+                // subss is an array of a single array: [[a, b, c]]
+                if(destss.length > 1) {
+                    // destss is an array of single element arrays: [[a],[b],[c]]
+                    ors = combineAllToOne(cmd.location.relation, subss[0], destss.map(a => a[0]), state);
+                } else if(destss[0].length) {
+                    // subss is an array of a single array: [[a, b, c]]
+                    ors.push(combineAllToAll(cmd.location.relation, subss[0], destss[0], state))
+                }
             }
         }
         if(!ors.length)
@@ -224,12 +234,30 @@ Top-level function for the Interpreter. It calls `interpretCommand` for each pos
                 if(checkPhysics(left.objId, state.objects[left.objId], relation, right.objId, state.objects[right.objId]))
                     for(var or of dnf)
                         or.push({polarity: true, relation: relation, args: [left.objId, right.objId]});
-                ors = ors.concat(dnf);
+                if(dnf.length)
+                    ors = ors.concat(dnf);
             }
         }
         return ors;
     }
 
+    /**
+     * Combines "put all balls beside all boxes"
+     * @param relation The relation that the entities should share
+     * @param lefts A conjunction of the first arguments of the relation
+     * @param rights A conjunction of the second arguments of the relation
+     * @param state The WorldState
+     * @return A conjunction of all combinations between lefts and rights
+     */
+    function combineAllToAll(relation : string, lefts : ObjectRef[], rights : ObjectRef[], state : WorldState) : Conjunction {
+        var ands : Conjunction = [];
+        for(var left of lefts) {
+            for(var right of rights) {
+                ands.push({polarity: true, relation: relation, args: [left.objId, right.objId]});
+            }
+        }
+        return ands;
+    }
 
     export function checkPhysics(srcId : string, srcObj : ObjectDefinition,
                           relation : string, dstId : string,
