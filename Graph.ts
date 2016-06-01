@@ -55,10 +55,15 @@ function aStarSearch<Node> (
     heuristics : (n:Node) => number,
     timeout : number
 ) : SearchResult<Node> {
+    var dictHeuristics = new collections.Dictionary<Node, number>();
     // graph.compareNodes only checks if two nodes are the same, but we want to check the heuristics
     var comparer: collections.ICompareFunction<Node> = function(a, b) {
-        var aCost = costs.getValue(a) + heuristics(a), 
-            bCost = costs.getValue(b) + heuristics(b);
+        if(!dictHeuristics.containsKey(a))
+            dictHeuristics.setValue(a, heuristics(a));
+        if(!dictHeuristics.containsKey(b))
+            dictHeuristics.setValue(b, heuristics(b));
+        var aCost = costs.getValue(a) + dictHeuristics.getValue(a), 
+            bCost = costs.getValue(b) + dictHeuristics.getValue(b);
         return bCost - aCost;
     }
     var queue = new collections.PriorityQueue(comparer);
