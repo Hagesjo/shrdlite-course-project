@@ -206,6 +206,8 @@ function heuristics(ors : Interpreter.DNFFormula, node : PNode) : number {
                         } else {
                             var dstCoord : Coordinate = findIndex(and.args[1], node.stacks);
                             andMin += Math.abs(dstCoord.x - node.arm); // move the arm above dst
+                            if(and.relation === "beside")
+                                andMin++; // worst case we have to put it on the far side
                             andMin++; // drop
                         }
                     } else if(node.holding === and.args[1]) {
@@ -229,6 +231,8 @@ function heuristics(ors : Interpreter.DNFFormula, node : PNode) : number {
                         } else {
                             var dstCoord : Coordinate = findIndex(and.args[1], node.stacks);
                             andMin += Math.abs(dstCoord.x - srcCoord.x); // move the arm above dst
+                            if(and.relation === "beside")
+                                andMin++; // worst case we have to put it on the far side
                             andMin++; // drop
                         }
                     }
